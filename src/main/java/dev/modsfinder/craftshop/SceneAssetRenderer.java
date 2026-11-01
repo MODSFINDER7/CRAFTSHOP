@@ -53,6 +53,7 @@ public final class SceneAssetRenderer {
         }
 
         preview.setNoGravity(true);
+        preview.tick();
         preview.setPos(0.0, 0.0, 0.0);
         preview.setYRot(object.transform.rotationY);
         preview.setXRot(object.transform.rotationX);
