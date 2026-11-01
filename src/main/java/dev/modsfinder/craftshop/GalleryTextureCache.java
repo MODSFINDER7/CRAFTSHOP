@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 public final class GalleryTextureCache {
     private static final int MAX_PREVIEWS = 2;
@@ -85,9 +86,9 @@ public final class GalleryTextureCache {
     private static TextureEntry register(Path path, String type, NativeImage image) {
         int width = image.getWidth();
         int height = image.getHeight();
-        Identifier id = Identifier.fromNamespaceAndPath(
-                "craftshop", "gallery/" + type + "_" + Integer.toUnsignedString(path.toString().hashCode(), 36)
-        );
+        String uniqueId = UUID.nameUUIDFromBytes(path.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8))
+                .toString().replace("-", "");
+        Identifier id = Identifier.fromNamespaceAndPath("craftshop", "gallery/" + type + "_" + uniqueId);
         DynamicTexture texture = new DynamicTexture(() -> "CraftShop " + type + " " + path.getFileName(), image);
         Minecraft.getInstance().getTextureManager().register(id, texture);
         return new TextureEntry(id, width, height);
