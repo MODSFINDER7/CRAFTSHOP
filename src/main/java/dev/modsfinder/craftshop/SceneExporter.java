@@ -35,7 +35,11 @@ public final class SceneExporter {
                         Math.max(1, Math.round(guiHeight * image.getHeight() / (float) guiScreenHeight)));
                 if (width <= 0 || height <= 0) throw new IOException("Viewport is outside the screenshot");
                 output = new NativeImage(width, height, false);
-                for (int py = 0; py < height; py++) {\n                    for (int px = 0; px < width; px++) {\n                        output.setPixel(px, py, image.getPixel(x + px, y + py));\n                    }\n                }
+                for (int py = 0; py < height; py++) {
+                    for (int px = 0; px < width; px++) {
+                        output.setPixel(px, py, image.getPixel(x + px, y + py));
+                    }
+                }
 
                 Path directory = Path.of(System.getProperty("user.home"), "Pictures", "CraftShop");
                 Files.createDirectories(directory);
