@@ -11,12 +11,15 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class GalleryTextureCache {
-    private static final Map<Path, TextureEntry> PREVIEWS = new HashMap<>();
-    private static final Map<Path, TextureEntry> THUMBNAILS = new HashMap<>();
+    private static final int MAX_PREVIEWS = 2;
+    private static final int MAX_THUMBNAILS = 36;
+
+    private static final Map<Path, TextureEntry> PREVIEWS = new LinkedHashMap<>(16, 0.75F, true);
+    private static final Map<Path, TextureEntry> THUMBNAILS = new LinkedHashMap<>(48, 0.75F, true);
 
     private GalleryTextureCache() {}
 
@@ -29,8 +32,9 @@ public final class GalleryTextureCache {
             NativeImage image = NativeImage.read(normalized.toFile());
             TextureEntry entry = register(normalized, "preview", image);
             PREVIEWS.put(normalized, entry);
+            trim(PREVIEWS, MAX_PREVIEWS);
             return entry;
-        } catch (IOException exception) {
+        } catch (IOException | RuntimeException exception) {
             CraftShop.LOGGER.error("Could not load gallery preview {}", normalized, exception);
             return null;
         }
@@ -51,11 +55,14 @@ public final class GalleryTextureCache {
 
             BufferedImage scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
             Graphics2D graphics = scaled.createGraphics();
-            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            graphics.drawImage(source, 0, 0, width, height, null);
-            graphics.dispose();
-            source.flush();
+            try {
+                graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+                graphics.drawImage(source, 0, 0, width, height, null);
+            } finally {
+                graphics.dispose();
+                source.flush();
+            }
 
             NativeImage image = new NativeImage(width, height, false);
             for (int y = 0; y < height; y++) {
@@ -67,8 +74,9 @@ public final class GalleryTextureCache {
 
             TextureEntry entry = register(normalized, "thumbnail", image);
             THUMBNAILS.put(normalized, entry);
+            trim(THUMBNAILS, MAX_THUMBNAILS);
             return entry;
-        } catch (IOException exception) {
+        } catch (IOException | RuntimeException exception) {
             CraftShop.LOGGER.error("Could not load gallery thumbnail {}", normalized, exception);
             return null;
         }
@@ -83,6 +91,14 @@ public final class GalleryTextureCache {
         DynamicTexture texture = new DynamicTexture(() -> "CraftShop " + type + " " + path.getFileName(), image);
         Minecraft.getInstance().getTextureManager().register(id, texture);
         return new TextureEntry(id, width, height);
+    }
+
+    private static void trim(Map<Path, TextureEntry> cache, int maximumSize) {
+        while (cache.size() > maximumSize) {
+            Path eldestPath = cache.keySet().iterator().next();
+            TextureEntry eldest = cache.remove(eldestPath);
+            release(eldest);
+        }
     }
 
     public static void invalidate(Path imagePath) {
