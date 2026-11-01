@@ -15,7 +15,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 
 public final class Canvas2DScreen extends Screen {
@@ -33,6 +35,8 @@ public final class Canvas2DScreen extends Screen {
     private int brushSize = 5;
     private int activeLayer;
     private int layerPage;
+    private final Deque<String> undoHistory = new ArrayDeque<>();
+    private final Deque<String> redoHistory = new ArrayDeque<>();
     private boolean drawing;
     private boolean cropping;
     private float lastX;
@@ -67,14 +71,16 @@ public final class Canvas2DScreen extends Screen {
                 .bounds(x, y + 104, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Size +"), b -> brushSize = Math.min(40, brushSize + 2))
                 .bounds(x, y + 128, 78, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Undo"), b -> undoLast())
+        addRenderableWidget(Button.builder(Component.literal("Undo"), b -> undo())
                 .bounds(x, y + 160, 78, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Clear"), b -> clearLayer())
+        addRenderableWidget(Button.builder(Component.literal("Redo"), b -> redo())
                 .bounds(x, y + 184, 78, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Layer On/Off"), b -> toggleLayer())
+        addRenderableWidget(Button.builder(Component.literal("Clear"), b -> clearLayer())
                 .bounds(x, y + 208, 78, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Reset Crop"), b -> resetCrop())
+        addRenderableWidget(Button.builder(Component.literal("Layer On/Off"), b -> toggleLayer())
                 .bounds(x, y + 232, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Reset Crop"), b -> resetCrop())
+                .bounds(x, y + 256, 78, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("New"), b -> newDocument())
                 .bounds(172, 12, 48, 20).build());
@@ -99,6 +105,7 @@ public final class Canvas2DScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Sepia"), b -> applyImageFilter("sepia"))
                 .bounds(this.width - 178, 300, 76, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Reset Image"), b -> {
+            checkpoint();
             document.backgroundImage = "";
             status = "Background image cleared";
         }).bounds(this.width - 98, 300, 78, 20).build());
@@ -306,6 +313,7 @@ public final class Canvas2DScreen extends Screen {
             if ("Brush".equals(tool) || "Eraser".equals(tool)) {
                 Layer layer = currentLayer();
                 if (layer == null) return true;
+                checkpoint();
                 Stroke stroke = new Stroke();
                 stroke.color = activeColor;
                 stroke.size = brushSize;
@@ -363,6 +371,7 @@ public final class Canvas2DScreen extends Screen {
             int w = Math.abs(cropEndX - cropStartX);
             int h = Math.abs(cropEndY - cropStartY);
             if (w > 8 && h > 8) {
+                checkpoint();
                 document.cropX = x;
                 document.cropY = y;
                 document.cropWidth = w;
@@ -382,6 +391,7 @@ public final class Canvas2DScreen extends Screen {
 
     private void openImagePicker() {
         this.minecraft.gui.setScreen(new CanvasImagePickerScreen(this, path -> {
+            checkpoint();
             document.backgroundImage = path.toAbsolutePath().toString();
             status = "Imported " + path.getFileName();
         }));
@@ -426,6 +436,7 @@ public final class Canvas2DScreen extends Screen {
             ImageIO.write(output, "png", filtered.toFile());
             source.flush();
             output.flush();
+            checkpoint();
             document.backgroundImage = filtered.toAbsolutePath().toString();
             status = filter + " filter applied";
         } catch (IOException | RuntimeException exception) {
@@ -440,11 +451,13 @@ public final class Canvas2DScreen extends Screen {
         Layer layer = currentLayer();
         float x = textAnchorX == 0 ? canvasLeft() + 24 : textAnchorX;
         float y = textAnchorY == 0 ? canvasTop() + 30 : textAnchorY;
+        checkpoint();
         layer.texts.add(new TextItem(value, x, y, activeColor));
         status = "Text added to " + layer.name;
     }
 
     private void addLayer() {
+        checkpoint();
         document.layers.add(new Layer("Layer " + (document.layers.size() + 1)));
         activeLayer = document.layers.size() - 1;
         refreshWidgets();
@@ -453,6 +466,7 @@ public final class Canvas2DScreen extends Screen {
 
     private void deleteLayer() {
         if (document.layers.size() <= 1) { status = "Keep at least one layer"; return; }
+        checkpoint();
         document.layers.remove(activeLayer);
         activeLayer = Math.max(0, activeLayer - 1);
         refreshWidgets();
@@ -460,12 +474,14 @@ public final class Canvas2DScreen extends Screen {
     }
 
     private void toggleLayer() {
+        checkpoint();
         Layer layer = currentLayer();
         layer.visible = !layer.visible;
         status = layer.name + (layer.visible ? " visible" : " hidden");
     }
 
     private void resetCrop() {
+        checkpoint();
         document.cropX = 0;
         document.cropY = 0;
         document.cropWidth = 0;
@@ -474,25 +490,51 @@ public final class Canvas2DScreen extends Screen {
     }
 
     private void clearLayer() {
+        checkpoint();
         Layer layer = currentLayer();
         layer.strokes.clear();
         layer.texts.clear();
         status = "Active layer cleared";
     }
 
-    private void undoLast() {
-        Layer layer = currentLayer();
-        if (!layer.strokes.isEmpty()) layer.strokes.remove(layer.strokes.size() - 1);
-        else if (!layer.texts.isEmpty()) layer.texts.remove(layer.texts.size() - 1);
-        status = "Last layer item removed";
+    private void checkpoint() {
+        undoHistory.push(GSON.toJson(document));
+        while (undoHistory.size() > 40) undoHistory.removeLast();
+        redoHistory.clear();
+    }
+
+    private void undo() {
+        if (undoHistory.isEmpty()) { status = "Nothing to undo"; return; }
+        redoHistory.push(GSON.toJson(document));
+        restoreDocument(undoHistory.pop());
+        status = "Undo";
+        refreshWidgets();
+    }
+
+    private void redo() {
+        if (redoHistory.isEmpty()) { status = "Nothing to redo"; return; }
+        undoHistory.push(GSON.toJson(document));
+        restoreDocument(redoHistory.pop());
+        status = "Redo";
+        refreshWidgets();
+    }
+
+    private void restoreDocument(String json) {
+        CanvasDocument restored = GSON.fromJson(json, CanvasDocument.class);
+        if (restored != null && restored.layers != null && !restored.layers.isEmpty()) {
+            document = restored;
+            activeLayer = Math.max(0, Math.min(activeLayer, document.layers.size() - 1));
+        }
     }
 
     private void adjustBrightness(int amount) {
+        checkpoint();
         document.brightness = clamp(document.brightness + amount, -100, 100);
         status = "Brightness: " + document.brightness;
     }
 
     private void newDocument() {
+        checkpoint();
         document = new CanvasDocument();
         activeLayer = 0;
         status = "New canvas";
@@ -532,6 +574,8 @@ public final class Canvas2DScreen extends Screen {
                     return;
                 }
                 document = loaded;
+                undoHistory.clear();
+                redoHistory.clear();
                 activeLayer = 0;
                 status = "Opened " + latest.getFileName();
                 refreshWidgets();
@@ -570,6 +614,14 @@ public final class Canvas2DScreen extends Screen {
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (textField != null && textField.isFocused()) return super.keyPressed(keyCode, scanCode, modifiers);
+        if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && keyCode == GLFW.GLFW_KEY_Z) {
+            undo();
+            return true;
+        }
+        if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && keyCode == GLFW.GLFW_KEY_Y) {
+            redo();
+            return true;
+        }
         if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && keyCode == GLFW.GLFW_KEY_S) {
             saveDocument();
             return true;
