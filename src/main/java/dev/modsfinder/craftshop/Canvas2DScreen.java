@@ -415,7 +415,7 @@ public final class Canvas2DScreen extends Screen {
     }
 
     private void openImagePicker() {
-        this.minecraft.setScreen(new CanvasImagePickerScreen(this, path -> {
+        this.minecraft.gui.setScreen(new CanvasImagePickerScreen(this, path -> {
             try {
                 Path assets = directory().resolve("assets");
                 Files.createDirectories(assets);
@@ -649,7 +649,7 @@ public final class Canvas2DScreen extends Screen {
     }
 
     private void openProjectPicker() {
-        this.minecraft.setScreen(new CanvasProjectPickerScreen(this, this::loadDocument));
+        this.minecraft.gui.setScreen(new CanvasProjectPickerScreen(this, this::loadDocument));
     }
 
     private void loadDocument(Path selectedFile) {
@@ -684,7 +684,7 @@ public final class Canvas2DScreen extends Screen {
     }
 
     private void returnToParent() {
-        this.minecraft.setScreen(parent);
+        this.minecraft.gui.setScreen(parent);
     }
 
     private static int clamp(int value, int min, int max) {
@@ -707,7 +707,7 @@ public final class Canvas2DScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        int keyCode = event.keycode();
+        int keyCode = event.input();
         if ((textField != null && textField.isFocused())
                 || (projectNameField != null && projectNameField.isFocused())) {
             return super.keyPressed(event);
