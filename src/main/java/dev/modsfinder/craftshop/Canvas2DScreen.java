@@ -112,7 +112,8 @@ public final class Canvas2DScreen extends Screen {
         int layerY = this.height - 46;
         for (int i = 0; i < document.layers.size() && i < 5; i++) {
             final int index = i;
-            addRenderableWidget(Button.builder(Component.literal((i == activeLayer ? "> " : "") + document.layers.get(i).name),
+            addRenderableWidget(Button.builder(Component.literal((i == activeLayer ? "> " : "")
+                    + (document.layers.get(i).visible ? "[on] " : "[off] ") + document.layers.get(i).name),
                     b -> activeLayer = index).bounds(116 + i * 112, layerY, 106, 20).build());
         }
     }
@@ -152,6 +153,12 @@ public final class Canvas2DScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
+        for (int i = 0; i < PALETTE.length; i++) {
+            int sx = this.width - 174 + (i % 2) * 78;
+            int sy = 174 + (i / 2) * 24;
+            graphics.fill(sx + 2, sy + 2, sx + 68, sy + 18, PALETTE[i]);
+            if (activeColor == PALETTE[i]) graphics.outline(sx + 1, sy + 1, 68, 18, 0xFF00D8FF);
+        }
         graphics.text(font, "CRAFTSHOP", 18, 14, 0xFFFFFFFF, true);
         graphics.text(font, "2D IMAGE EDITOR", 104, 14, 0xFF55DDEE, true);
         graphics.text(font, "TOOLS", 16, 54, 0xFF9AA8B8, false);
@@ -160,7 +167,7 @@ public final class Canvas2DScreen extends Screen {
         graphics.text(font, "Active layer: " + activeLayerName(), width - 178, height - 66, 0xFFB5C0CD, false);
         graphics.text(font, "Brush: " + brushSize + " px", 14, 282, 0xFFB5C0CD, false);
         graphics.text(font, "Tool: " + tool, 14, 298, 0xFFB5C0CD, false);
-        graphics.text(font, "Brightness: " + document.brightness, width - 178, 226, 0xFFB5C0CD, false);
+        graphics.text(font, "Ink brightness: " + document.brightness, width - 178, 226, 0xFFB5C0CD, false);
 
         if (document.backgroundImage != null && !document.backgroundImage.isBlank()) {
             try {
