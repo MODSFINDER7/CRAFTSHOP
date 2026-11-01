@@ -5,6 +5,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -100,7 +102,7 @@ public final class StudioScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Delete"), button -> deleteSelected())
                 .bounds(634, 12, 58, 20).build());
         addRenderableWidget(Button.builder(Component.literal("2D Editor"), button ->
-                this.minecraft.gui.setScreen(new Canvas2DScreen(this)))
+                this.minecraft.setScreen(new Canvas2DScreen(this)))
                 .bounds(700, 12, 68, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Gallery"), button -> returnToParent())
                 .bounds(this.width - 82, 12, 68, 20).build());
@@ -115,7 +117,7 @@ public final class StudioScreen extends Screen {
             ), button -> {
                 selectedObjectId = id;
                 status = "Selected " + object.name;
-                rebuildWidgets();
+                rebuildStudioWidgets();
             }).bounds(rightPanelLeft() + 8, y, rightPanelWidth() - 16, 18).build());
             row++;
         }
@@ -126,11 +128,11 @@ public final class StudioScreen extends Screen {
                 button -> {
                     activeTool = tool;
                     status = tool + " tool selected";
-                    rebuildWidgets();
+                    rebuildStudioWidgets();
                 }).bounds(x, y, 66, 20).build();
     }
 
-    private void rebuildWidgets() {
+    private void rebuildStudioWidgets() {
         clearWidgets();
         init();
     }
@@ -382,7 +384,7 @@ public final class StudioScreen extends Screen {
         project = HISTORY_GSON.fromJson(undoHistory.pop(), SceneProject.class);
         validateSelection();
         status = "Undo";
-        rebuildWidgets();
+        rebuildStudioWidgets();
     }
 
     private void redo() {
@@ -394,7 +396,7 @@ public final class StudioScreen extends Screen {
         project = HISTORY_GSON.fromJson(redoHistory.pop(), SceneProject.class);
         validateSelection();
         status = "Redo";
-        rebuildWidgets();
+        rebuildStudioWidgets();
     }
 
     private void validateSelection() {
@@ -404,7 +406,7 @@ public final class StudioScreen extends Screen {
     }
 
     private void openAssetPicker(boolean entities) {
-        this.minecraft.gui.setScreen(new SceneAssetPickerScreen(this, entities, asset -> {
+        this.minecraft.setScreen(new SceneAssetPickerScreen(this, entities, asset -> {
             checkpoint();
             SceneProject.SceneObject object = new SceneProject.SceneObject();
             object.kind = asset.entity() ? "minecraft_entity" : "minecraft_block";
@@ -414,7 +416,7 @@ public final class StudioScreen extends Screen {
             project.objects.add(object);
             selectedObjectId = object.id;
             status = "Added " + asset.id();
-            rebuildWidgets();
+            rebuildStudioWidgets();
         }));
     }
 
@@ -434,7 +436,7 @@ public final class StudioScreen extends Screen {
         project.objects.add(object);
         selectedObjectId = object.id;
         status = "Added " + object.name;
-        rebuildWidgets();
+        rebuildStudioWidgets();
     }
 
     private void duplicateSelected() {
@@ -463,7 +465,7 @@ public final class StudioScreen extends Screen {
         project.objects.add(copy);
         selectedObjectId = copy.id;
         status = "Duplicated " + source.name;
-        rebuildWidgets();
+        rebuildStudioWidgets();
     }
 
     private void deleteSelected() {
@@ -480,18 +482,18 @@ public final class StudioScreen extends Screen {
         });
         selectedObjectId = null;
         status = "Deleted " + selected.name;
-        rebuildWidgets();
+        rebuildStudioWidgets();
     }
 
     private void openProjectBrowser() {
-        this.minecraft.gui.setScreen(new ProjectBrowserScreen(this, loaded -> {
+        this.minecraft.setScreen(new ProjectBrowserScreen(this, loaded -> {
             checkpoint();
             project = loaded;
             selectedObjectId = null;
             validateSelection();
             if (projectNameField != null) projectNameField.setValue(project.name);
             status = "Project loaded";
-            rebuildWidgets();
+            rebuildStudioWidgets();
         }));
     }
 
@@ -513,11 +515,14 @@ public final class StudioScreen extends Screen {
         activeTool = "Select";
         status = "New scene created";
         if (projectNameField != null) projectNameField.setValue(project.name);
-        rebuildWidgets();
+        rebuildStudioWidgets();
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
                 && mouseX >= viewportLeft() && mouseX <= viewportRight()
                 && mouseY >= 66 && mouseY <= timelineTop() - 8) {
@@ -538,7 +543,7 @@ public final class StudioScreen extends Screen {
                 return true;
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, doubleClick);
     }
 
     private void selectAt(double mouseX, double mouseY) {
@@ -556,13 +561,14 @@ public final class StudioScreen extends Screen {
         }
         selectedObjectId = nearest == null ? null : nearest.id;
         status = nearest == null ? "Selection cleared" : "Selected " + nearest.name;
-        rebuildWidgets();
+        rebuildStudioWidgets();
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+    public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
+        int button = event.button();
         if (!draggingViewport || button != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+            return super.mouseDragged(event, dragX, dragY);
         }
 
         SceneProject.SceneObject selected = selectedObject();
@@ -601,7 +607,8 @@ public final class StudioScreen extends Screen {
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+    public boolean mouseReleased(MouseButtonEvent event) {
+        int button = event.button();
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && draggingViewport) {
             draggingViewport = false;
             if (!dragChanged && !undoHistory.isEmpty()) {
@@ -610,7 +617,7 @@ public final class StudioScreen extends Screen {
             dragChanged = false;
             return true;
         }
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(event);
     }
 
     @Override
@@ -627,53 +634,54 @@ public final class StudioScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(KeyEvent event) {
+        int keyCode = event.keycode();
         if (projectNameField != null && projectNameField.isFocused()) {
-            return super.keyPressed(keyCode, scanCode, modifiers);
+            return super.keyPressed(event);
         }
 
-        boolean control = (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
-        if (control && keyCode == GLFW.GLFW_KEY_Z) {
+        boolean control = event.hasControlDown();
+        if (control && keyCode == 'z') {
             undo();
             return true;
         }
-        if (control && keyCode == GLFW.GLFW_KEY_Y) {
+        if (control && keyCode == 'y') {
             redo();
             return true;
         }
-        if (control && keyCode == GLFW.GLFW_KEY_D) {
+        if (control && keyCode == 'd') {
             duplicateSelected();
             return true;
         }
-        if (keyCode == GLFW.GLFW_KEY_G) {
+        if (keyCode == 'g') {
             activeTool = "Move";
             status = "Move tool selected";
-            rebuildWidgets();
+            rebuildStudioWidgets();
             return true;
         }
-        if (keyCode == GLFW.GLFW_KEY_R) {
+        if (keyCode == 'r') {
             activeTool = "Rotate";
             status = "Rotate tool selected";
-            rebuildWidgets();
+            rebuildStudioWidgets();
             return true;
         }
-        if (keyCode == GLFW.GLFW_KEY_S) {
+        if (keyCode == 's') {
             activeTool = "Scale";
             status = "Scale tool selected";
-            rebuildWidgets();
+            rebuildStudioWidgets();
             return true;
         }
-        if (keyCode == GLFW.GLFW_KEY_DELETE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+        if (keyCode == 127 || keyCode == 8) {
             deleteSelected();
             return true;
         }
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE && !"Select".equals(activeTool)) {
+        if (event.isEscape() && !"Select".equals(activeTool)) {
             activeTool = "Select";
             status = "Select tool restored";
-            rebuildWidgets();
+            rebuildStudioWidgets();
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     private static float clamp(float value, float minimum, float maximum) {
@@ -681,7 +689,7 @@ public final class StudioScreen extends Screen {
     }
 
     private void returnToParent() {
-        this.minecraft.gui.setScreen(parent);
+        this.minecraft.setScreen(parent);
     }
 
     @Override
