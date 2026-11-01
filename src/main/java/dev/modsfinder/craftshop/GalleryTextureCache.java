@@ -10,6 +10,7 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,7 +31,10 @@ public final class GalleryTextureCache {
         if (existing != null) return existing;
 
         try {
-            NativeImage image = NativeImage.read(normalized.toFile());
+            NativeImage image;
+            try (var input = Files.newInputStream(normalized)) {
+                image = NativeImage.read(input);
+            }
             TextureEntry entry = register(normalized, "preview", image);
             PREVIEWS.put(normalized, entry);
             trim(PREVIEWS, MAX_PREVIEWS);
