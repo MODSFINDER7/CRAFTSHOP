@@ -1,0 +1,485 @@
+package dev.modsfinder.craftshop;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+
+public final class Canvas2DScreen extends Screen {
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final int[] PALETTE = {
+            0xFF111111, 0xFFFFFFFF, 0xFFE53935, 0xFFFB8C00,
+            0xFFFDD835, 0xFF43A047, 0xFF00ACC1, 0xFF1E88E5,
+            0xFF5E35B1, 0xFFD81B60
+    };
+
+    private final Screen parent;
+    private CanvasDocument document = new CanvasDocument();
+    private String tool = "Brush";
+    private int activeColor = PALETTE[0];
+    private int brushSize = 5;
+    private int activeLayer;
+    private boolean drawing;
+    private boolean cropping;
+    private float lastX;
+    private float lastY;
+    private int cropStartX;
+    private int cropStartY;
+    private int cropEndX;
+    private int cropEndY;
+    private EditBox textField;
+    private String status = "Ready";
+
+    public Canvas2DScreen(Screen parent) {
+        super(Component.literal("CraftShop 2D Editor"));
+        this.parent = parent;
+    }
+
+    private int canvasLeft() { return 112; }
+    private int canvasTop() { return 76; }
+    private int canvasRight() { return Math.max(canvasLeft() + 180, this.width - 190); }
+    private int canvasBottom() { return this.height - 54; }
+
+    @Override
+    protected void init() {
+        int x = 12;
+        int y = 70;
+        addRenderableWidget(toolButton("Brush", x, y));
+        addRenderableWidget(toolButton("Eraser", x, y + 24));
+        addRenderableWidget(toolButton("Text", x, y + 48));
+        addRenderableWidget(toolButton("Crop", x, y + 72));
+
+        addRenderableWidget(Button.builder(Component.literal("Size -"), b -> brushSize = Math.max(1, brushSize - 2))
+                .bounds(x, y + 104, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Size +"), b -> brushSize = Math.min(40, brushSize + 2))
+                .bounds(x, y + 128, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Undo"), b -> undoLast())
+                .bounds(x, y + 160, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Clear"), b -> clearLayer())
+                .bounds(x, y + 184, 78, 20).build());
+
+        addRenderableWidget(Button.builder(Component.literal("New"), b -> newDocument())
+                .bounds(172, 12, 48, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Open"), b -> openLatest())
+                .bounds(224, 12, 52, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Save"), b -> saveDocument())
+                .bounds(280, 12, 52, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Add Layer"), b -> addLayer())
+                .bounds(338, 12, 76, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Delete Layer"), b -> deleteLayer())
+                .bounds(418, 12, 88, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Bright +"), b -> adjustBrightness(12))
+                .bounds(510, 12, 72, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Bright -"), b -> adjustBrightness(-12))
+                .bounds(586, 12, 72, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Export PNG"), b -> exportCanvas())
+                .bounds(662, 12, 82, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("3D Studio"), b -> returnToParent())
+                .bounds(this.width - 100, 12, 88, 20).build());
+
+        textField = new EditBox(this.font, this.width - 178, 104, 158, 20, Component.literal("Text to add"));
+        textField.setMaxLength(120);
+        textField.setValue("CraftShop");
+        addRenderableWidget(textField);
+        addRenderableWidget(Button.builder(Component.literal("Add Text"), b -> addText())
+                .bounds(this.width - 178, 128, 158, 20).build());
+
+        for (int i = 0; i < PALETTE.length; i++) {
+            final int color = PALETTE[i];
+            int col = i % 2;
+            int row = i / 2;
+            addRenderableWidget(Button.builder(Component.literal("   "), b -> activeColor = color)
+                    .bounds(this.width - 174 + col * 78, 174 + row * 24, 70, 20).build());
+        }
+
+        int layerY = this.height - 46;
+        for (int i = 0; i < document.layers.size() && i < 5; i++) {
+            final int index = i;
+            addRenderableWidget(Button.builder(Component.literal((i == activeLayer ? "> " : "") + document.layers.get(i).name),
+                    b -> activeLayer = index).bounds(116 + i * 112, layerY, 106, 20).build());
+        }
+    }
+
+    private Button toolButton(String name, int x, int y) {
+        return Button.builder(Component.literal((tool.equals(name) ? "> " : "") + name), b -> {
+            tool = name;
+            status = name + " tool";
+            refreshWidgets();
+        }).bounds(x, y, 78, 20).build();
+    }
+
+    private void refreshWidgets() {
+        clearWidgets();
+        init();
+    }
+
+    @Override
+    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        super.extractBackground(graphics, mouseX, mouseY, delta);
+        graphics.fill(0, 0, width, height, 0xFF101319);
+        graphics.fill(8, 8, width - 8, 36, 0xFF1D232D);
+        graphics.fill(8, 42, width - 8, height - 8, 0xFF171C24);
+        graphics.fill(canvasLeft(), canvasTop(), canvasRight(), canvasBottom(), 0xFFFFFFFF);
+        graphics.outline(canvasLeft() - 1, canvasTop() - 1,
+                canvasRight() - canvasLeft() + 2, canvasBottom() - canvasTop() + 2, 0xFF596879);
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        super.extractRenderState(graphics, mouseX, mouseY, delta);
+        graphics.text(font, "CRAFTSHOP", 18, 14, 0xFFFFFFFF, true);
+        graphics.text(font, "2D IMAGE EDITOR", 104, 14, 0xFF55DDEE, true);
+        graphics.text(font, "TOOLS", 16, 54, 0xFF9AA8B8, false);
+        graphics.text(font, "TEXT", width - 174, 82, 0xFF55DDEE, true);
+        graphics.text(font, "COLOURS", width - 174, 154, 0xFF55DDEE, true);
+        graphics.text(font, "Active layer: " + activeLayerName(), width - 178, height - 66, 0xFFB5C0CD, false);
+        graphics.text(font, "Brush: " + brushSize + " px", 14, 282, 0xFFB5C0CD, false);
+        graphics.text(font, "Tool: " + tool, 14, 298, 0xFFB5C0CD, false);
+        graphics.text(font, "Brightness: " + document.brightness, width - 178, 226, 0xFFB5C0CD, false);
+
+        for (Layer layer : document.layers) {
+            if (!layer.visible) continue;
+            for (Stroke stroke : layer.strokes) {
+                if (stroke.points == null || stroke.points.isEmpty()) continue;
+                int color = stroke.eraser ? 0xFFFFFFFF : adjustColor(stroke.color, document.brightness);
+                Point previous = null;
+                for (Point point : stroke.points) {
+                    if (!insideCrop(point.x, point.y)) { previous = point; continue; }
+                    if (previous == null || !insideCrop(previous.x, previous.y)) {
+                        drawDot(graphics, point.x, point.y, stroke.size, color);
+                    } else {
+                        drawSegment(graphics, previous.x, previous.y, point.x, point.y, stroke.size, color);
+                    }
+                    previous = point;
+                }
+            }
+            for (TextItem item : layer.texts) {
+                if (insideCrop(item.x, item.y)) {
+                    graphics.text(font, item.text, Math.round(item.x), Math.round(item.y),
+                            adjustColor(item.color, document.brightness), false);
+                }
+            }
+        }
+
+        if (document.cropWidth > 0 && document.cropHeight > 0) {
+            graphics.outline(Math.round(document.cropX), Math.round(document.cropY),
+                    Math.round(document.cropWidth), Math.round(document.cropHeight), 0xFF00A6D8);
+        }
+        if (cropping) {
+            graphics.outline(Math.min(cropStartX, cropEndX), Math.min(cropStartY, cropEndY),
+                    Math.abs(cropEndX - cropStartX), Math.abs(cropEndY - cropStartY), 0xFFFF9800);
+        }
+        graphics.fill(0, height - 8, width, height, 0xFF0B0E13);
+        graphics.text(font, "CRAFTSHOP 2D  •  " + document.name + "  •  " + document.layers.size() + " layers",
+                10, height - 7, 0xFF7F8D9C, false);
+        graphics.text(font, status, Math.max(280, width - 250), height - 7, 0xFF9DDDAA, false);
+    }
+
+    private String activeLayerName() {
+        if (document.layers.isEmpty()) return "None";
+        activeLayer = Math.max(0, Math.min(activeLayer, document.layers.size() - 1));
+        return document.layers.get(activeLayer).name;
+    }
+
+    private boolean insideCanvas(double x, double y) {
+        return x >= canvasLeft() && x < canvasRight() && y >= canvasTop() && y < canvasBottom();
+    }
+
+    private boolean insideCrop(float x, float y) {
+        if (document.cropWidth <= 0 || document.cropHeight <= 0) return true;
+        return x >= document.cropX && y >= document.cropY
+                && x <= document.cropX + document.cropWidth && y <= document.cropY + document.cropHeight;
+    }
+
+    private void drawDot(GuiGraphicsExtractor graphics, float x, float y, int size, int color) {
+        int radius = Math.max(1, size / 2);
+        graphics.fill(Math.round(x) - radius, Math.round(y) - radius,
+                Math.round(x) + radius + 1, Math.round(y) + radius + 1, color);
+    }
+
+    private void drawSegment(GuiGraphicsExtractor graphics, float x1, float y1, float x2, float y2,
+                             int size, int color) {
+        int steps = Math.max(1, (int) Math.ceil(Math.hypot(x2 - x1, y2 - y1)));
+        for (int i = 0; i <= steps; i++) {
+            float t = (float) i / steps;
+            drawDot(graphics, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, size, color);
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && insideCanvas(mouseX, mouseY)) {
+            if ("Crop".equals(tool)) {
+                cropping = true;
+                cropStartX = cropEndX = (int) mouseX;
+                cropStartY = cropEndY = (int) mouseY;
+                return true;
+            }
+            if ("Brush".equals(tool) || "Eraser".equals(tool)) {
+                Layer layer = currentLayer();
+                if (layer == null) return true;
+                Stroke stroke = new Stroke();
+                stroke.color = activeColor;
+                stroke.size = brushSize;
+                stroke.eraser = "Eraser".equals(tool);
+                stroke.points.add(new Point((float) mouseX, (float) mouseY));
+                layer.strokes.add(stroke);
+                drawing = true;
+                lastX = (float) mouseX;
+                lastY = (float) mouseY;
+                return true;
+            }
+            if ("Text".equals(tool)) {
+                textAnchorX = (float) mouseX;
+                textAnchorY = (float) mouseY;
+                status = "Text position selected; enter text on the right";
+                return true;
+            }
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    private float textAnchorX = 0;
+    private float textAnchorY = 0;
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT) return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        if (cropping) {
+            cropEndX = clamp((int) mouseX, canvasLeft(), canvasRight());
+            cropEndY = clamp((int) mouseY, canvasTop(), canvasBottom());
+            return true;
+        }
+        if (drawing) {
+            float x = (float) Math.max(canvasLeft(), Math.min(canvasRight() - 1, mouseX));
+            float y = (float) Math.max(canvasTop(), Math.min(canvasBottom() - 1, mouseY));
+            currentLayer().strokes.get(currentLayer().strokes.size() - 1).points.add(new Point(x, y));
+            lastX = x;
+            lastY = y;
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && drawing) {
+            drawing = false;
+            status = "Stroke added";
+            return true;
+        }
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && cropping) {
+            cropping = false;
+            int x = Math.min(cropStartX, cropEndX);
+            int y = Math.min(cropStartY, cropEndY);
+            int w = Math.abs(cropEndX - cropStartX);
+            int h = Math.abs(cropEndY - cropStartY);
+            if (w > 8 && h > 8) {
+                document.cropX = x;
+                document.cropY = y;
+                document.cropWidth = w;
+                document.cropHeight = h;
+                status = "Crop bounds updated";
+            }
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    private Layer currentLayer() {
+        if (document.layers.isEmpty()) document.layers.add(new Layer("Layer 1"));
+        activeLayer = Math.max(0, Math.min(activeLayer, document.layers.size() - 1));
+        return document.layers.get(activeLayer);
+    }
+
+    private void addText() {
+        String value = textField == null ? "" : textField.getValue().trim();
+        if (value.isEmpty()) return;
+        Layer layer = currentLayer();
+        float x = textAnchorX == 0 ? canvasLeft() + 24 : textAnchorX;
+        float y = textAnchorY == 0 ? canvasTop() + 30 : textAnchorY;
+        layer.texts.add(new TextItem(value, x, y, activeColor));
+        status = "Text added to " + layer.name;
+    }
+
+    private void addLayer() {
+        document.layers.add(new Layer("Layer " + (document.layers.size() + 1)));
+        activeLayer = document.layers.size() - 1;
+        refreshWidgets();
+        status = "Layer added";
+    }
+
+    private void deleteLayer() {
+        if (document.layers.size() <= 1) { status = "Keep at least one layer"; return; }
+        document.layers.remove(activeLayer);
+        activeLayer = Math.max(0, activeLayer - 1);
+        refreshWidgets();
+        status = "Layer deleted";
+    }
+
+    private void clearLayer() {
+        Layer layer = currentLayer();
+        layer.strokes.clear();
+        layer.texts.clear();
+        status = "Active layer cleared";
+    }
+
+    private void undoLast() {
+        Layer layer = currentLayer();
+        if (!layer.strokes.isEmpty()) layer.strokes.remove(layer.strokes.size() - 1);
+        else if (!layer.texts.isEmpty()) layer.texts.remove(layer.texts.size() - 1);
+        status = "Last layer item removed";
+    }
+
+    private void adjustBrightness(int amount) {
+        document.brightness = clamp(document.brightness + amount, -100, 100);
+        status = "Brightness: " + document.brightness;
+    }
+
+    private void newDocument() {
+        document = new CanvasDocument();
+        activeLayer = 0;
+        status = "New canvas";
+        refreshWidgets();
+    }
+
+    private Path directory() {
+        return net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath()
+                .resolve("craftshop").resolve("canvas");
+    }
+
+    private void saveDocument() {
+        try {
+            Files.createDirectories(directory());
+            String safe = document.name.replaceAll("[^A-Za-z0-9._-]", "_");
+            Path file = directory().resolve(safe + ".craftshop2d");
+            Files.writeString(file, GSON.toJson(document));
+            status = "Saved " + file.getFileName();
+        } catch (IOException exception) {
+            CraftShop.LOGGER.error("Could not save CraftShop 2D document", exception);
+            status = "Save failed";
+        }
+    }
+
+    private void openLatest() {
+        try {
+            Files.createDirectories(directory());
+            try (var files = Files.list(directory())) {
+                Path latest = files.filter(Files::isRegularFile)
+                        .filter(path -> path.toString().endsWith(".craftshop2d"))
+                        .max(java.util.Comparator.comparingLong(path -> path.toFile().lastModified()))
+                        .orElse(null);
+                if (latest == null) { status = "No saved canvas found"; return; }
+                CanvasDocument loaded = GSON.fromJson(Files.readString(latest), CanvasDocument.class);
+                if (loaded == null || loaded.layers == null || loaded.layers.isEmpty()) {
+                    status = "Invalid canvas file";
+                    return;
+                }
+                document = loaded;
+                activeLayer = 0;
+                status = "Opened " + latest.getFileName();
+                refreshWidgets();
+            }
+        } catch (Exception exception) {
+            CraftShop.LOGGER.error("Could not open CraftShop 2D document", exception);
+            status = "Open failed";
+        }
+    }
+
+    private void exportCanvas() {
+        status = "Exporting canvas...";
+        SceneExporter.exportViewport(this.minecraft, canvasLeft(), canvasTop(),
+                canvasRight() - canvasLeft(), canvasBottom() - canvasTop(),
+                message -> status = message);
+    }
+
+    private void returnToParent() {
+        this.minecraft.gui.setScreen(parent);
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static int adjustColor(int color, int brightness) {
+        int a = (color >>> 24) & 255;
+        int r = clamp(((color >>> 16) & 255) + brightness, 0, 255);
+        int g = clamp(((color >>> 8) & 255) + brightness, 0, 255);
+        int b = clamp((color & 255) + brightness, 0, 255);
+        return (a << 24) | (r << 16) | (g << 8) | b;
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (textField != null && textField.isFocused()) return super.keyPressed(keyCode, scanCode, modifiers);
+        if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && keyCode == GLFW.GLFW_KEY_S) {
+            saveDocument();
+            return true;
+        }
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            returnToParent();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public void onClose() { returnToParent(); }
+
+    @Override
+    public boolean isPauseScreen() { return false; }
+
+    private static final class CanvasDocument {
+        String name = "Untitled Canvas";
+        int brightness = 0;
+        float cropX;
+        float cropY;
+        float cropWidth;
+        float cropHeight;
+        List<Layer> layers = new ArrayList<>(List.of(new Layer("Layer 1")));
+    }
+
+    private static final class Layer {
+        String name;
+        boolean visible = true;
+        List<Stroke> strokes = new ArrayList<>();
+        List<TextItem> texts = new ArrayList<>();
+        Layer(String name) { this.name = name; }
+    }
+
+    private static final class Stroke {
+        int color;
+        int size;
+        boolean eraser;
+        List<Point> points = new ArrayList<>();
+    }
+
+    private static final class Point {
+        float x;
+        float y;
+        Point(float x, float y) { this.x = x; this.y = y; }
+    }
+
+    private static final class TextItem {
+        String text;
+        float x;
+        float y;
+        int color;
+        TextItem(String text, float x, float y, int color) {
+            this.text = text;
+            this.x = x;
+            this.y = y;
+            this.color = color;
+        }
+    }
+}
