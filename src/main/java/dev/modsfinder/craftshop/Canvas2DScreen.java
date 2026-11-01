@@ -6,6 +6,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
@@ -318,7 +320,10 @@ public final class Canvas2DScreen extends Screen {
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && insideCanvas(mouseX, mouseY)) {
             if ("Crop".equals(tool)) {
                 cropping = true;
@@ -348,15 +353,18 @@ public final class Canvas2DScreen extends Screen {
                 return true;
             }
         }
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(event, doubleClick);
     }
 
     private float textAnchorX = 0;
     private float textAnchorY = 0;
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT) return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
+        double mouseX = event.x();
+        double mouseY = event.y();
+        int button = event.button();
+        if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT) return super.mouseDragged(event, dragX, dragY);
         if (cropping) {
             cropEndX = clamp((int) mouseX, canvasLeft(), canvasRight());
             cropEndY = clamp((int) mouseY, canvasTop(), canvasBottom());
@@ -370,11 +378,12 @@ public final class Canvas2DScreen extends Screen {
             lastY = y;
             return true;
         }
-        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        return super.mouseDragged(event, dragX, dragY);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+    public boolean mouseReleased(MouseButtonEvent event) {
+        int button = event.button();
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && drawing) {
             drawing = false;
             status = "Stroke added";
@@ -396,7 +405,7 @@ public final class Canvas2DScreen extends Screen {
             }
             return true;
         }
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(event);
     }
 
     private Layer currentLayer() {
@@ -406,7 +415,7 @@ public final class Canvas2DScreen extends Screen {
     }
 
     private void openImagePicker() {
-        this.minecraft.gui.setScreen(new CanvasImagePickerScreen(this, path -> {
+        this.minecraft.setScreen(new CanvasImagePickerScreen(this, path -> {
             try {
                 Path assets = directory().resolve("assets");
                 Files.createDirectories(assets);
@@ -640,7 +649,7 @@ public final class Canvas2DScreen extends Screen {
     }
 
     private void openProjectPicker() {
-        this.minecraft.gui.setScreen(new CanvasProjectPickerScreen(this, this::loadDocument));
+        this.minecraft.setScreen(new CanvasProjectPickerScreen(this, this::loadDocument));
     }
 
     private void loadDocument(Path selectedFile) {
@@ -675,7 +684,7 @@ public final class Canvas2DScreen extends Screen {
     }
 
     private void returnToParent() {
-        this.minecraft.gui.setScreen(parent);
+        this.minecraft.setScreen(parent);
     }
 
     private static int clamp(int value, int min, int max) {
@@ -697,28 +706,29 @@ public final class Canvas2DScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(KeyEvent event) {
+        int keyCode = event.keycode();
         if ((textField != null && textField.isFocused())
                 || (projectNameField != null && projectNameField.isFocused())) {
-            return super.keyPressed(keyCode, scanCode, modifiers);
+            return super.keyPressed(event);
         }
-        if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && keyCode == GLFW.GLFW_KEY_Z) {
+        if (event.hasControlDown() && keyCode == 'z') {
             undo();
             return true;
         }
-        if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && keyCode == GLFW.GLFW_KEY_Y) {
+        if (event.hasControlDown() && keyCode == 'y') {
             redo();
             return true;
         }
-        if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && keyCode == GLFW.GLFW_KEY_S) {
+        if (event.hasControlDown() && keyCode == 's') {
             saveDocument();
             return true;
         }
-        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+        if (event.isEscape()) {
             returnToParent();
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     @Override
