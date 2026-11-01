@@ -28,13 +28,13 @@ public final class CraftShopClient implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (CAPTURE_KEY.consumeClick()) {
-                if (client.player != null && client.level != null) {
+                if (client.player != null && client.level != null && client.gui.screen() == null) {
                     ScreenshotManager.capture(client);
                 }
             }
 
             while (GALLERY_KEY.consumeClick()) {
-                if (client.player != null) {
+                if (client.player != null && client.gui.screen() == null) {
                     client.gui.setScreen(new ScreenshotGalleryScreen());
                 }
             }
