@@ -102,7 +102,7 @@ public final class StudioScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Delete"), button -> deleteSelected())
                 .bounds(634, 12, 58, 20).build());
         addRenderableWidget(Button.builder(Component.literal("2D Editor"), button ->
-                this.minecraft.setScreen(new Canvas2DScreen(this)))
+                this.minecraft.gui.setScreen(new Canvas2DScreen(this)))
                 .bounds(700, 12, 68, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Gallery"), button -> returnToParent())
                 .bounds(this.width - 82, 12, 68, 20).build());
@@ -406,7 +406,7 @@ public final class StudioScreen extends Screen {
     }
 
     private void openAssetPicker(boolean entities) {
-        this.minecraft.setScreen(new SceneAssetPickerScreen(this, entities, asset -> {
+        this.minecraft.gui.setScreen(new SceneAssetPickerScreen(this, entities, asset -> {
             checkpoint();
             SceneProject.SceneObject object = new SceneProject.SceneObject();
             object.kind = asset.entity() ? "minecraft_entity" : "minecraft_block";
@@ -486,7 +486,7 @@ public final class StudioScreen extends Screen {
     }
 
     private void openProjectBrowser() {
-        this.minecraft.setScreen(new ProjectBrowserScreen(this, loaded -> {
+        this.minecraft.gui.setScreen(new ProjectBrowserScreen(this, loaded -> {
             checkpoint();
             project = loaded;
             selectedObjectId = null;
@@ -635,7 +635,7 @@ public final class StudioScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        int keyCode = event.keycode();
+        int keyCode = event.input();
         if (projectNameField != null && projectNameField.isFocused()) {
             return super.keyPressed(event);
         }
@@ -689,7 +689,7 @@ public final class StudioScreen extends Screen {
     }
 
     private void returnToParent() {
-        this.minecraft.setScreen(parent);
+        this.minecraft.gui.setScreen(parent);
     }
 
     @Override
