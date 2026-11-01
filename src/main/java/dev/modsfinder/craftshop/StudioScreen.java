@@ -36,11 +36,11 @@ public final class StudioScreen extends Screen {
     }
 
     private int leftPanelWidth() {
-        return 82;
+        return this.width < 560 ? 70 : 82;
     }
 
     private int rightPanelWidth() {
-        return Math.max(174, Math.min(214, this.width / 4));
+        return Math.max(this.width < 560 ? 126 : 158, Math.min(196, this.width / 4));
     }
 
     private int rightPanelLeft() {
@@ -48,7 +48,7 @@ public final class StudioScreen extends Screen {
     }
 
     private int timelineTop() {
-        return this.height - 132;
+        return this.height - (this.height < 430 ? 82 : 104);
     }
 
     private int viewportLeft() {
@@ -66,59 +66,76 @@ public final class StudioScreen extends Screen {
 
     @Override
     protected void init() {
-        int left = 16;
+        int left = 8;
         int top = 76;
+        int gap = 3;
+        int compact = this.width < 560 ? 56 : 66;
 
         addRenderableWidget(toolButton("Select", left, top));
-        addRenderableWidget(toolButton("Move", left, top + 25));
-        addRenderableWidget(toolButton("Rotate", left, top + 50));
-        addRenderableWidget(toolButton("Scale", left, top + 75));
-        addRenderableWidget(toolButton("Orbit", left, top + 100));
-        addRenderableWidget(toolButton("Pan", left, top + 125));
-        addRenderableWidget(toolButton("Zoom", left, top + 150));
+        addRenderableWidget(toolButton("Block Sel", left, top + 24));
+        addRenderableWidget(toolButton("Entity Sel", left, top + 48));
+        addRenderableWidget(toolButton("Move", left, top + 72));
+        addRenderableWidget(toolButton("Rotate", left, top + 96));
+        addRenderableWidget(toolButton("Scale", left, top + 120));
+        addRenderableWidget(toolButton("Orbit", left, top + 144));
+        addRenderableWidget(toolButton("Pan", left, top + 168));
+        addRenderableWidget(toolButton("Zoom", left, top + 192));
         addRenderableWidget(Button.builder(Component.literal("Add Block"), button -> openAssetPicker(false))
-                .bounds(left, top + 178, 66, 20).build());
+                .bounds(left, top + 216, compact, 19).build());
         addRenderableWidget(Button.builder(Component.literal("Add Entity"), button -> openAssetPicker(true))
-                .bounds(left, top + 202, 66, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Export PNG"), button -> exportViewport())
-                .bounds(left, top + 226, 66, 20).build());
+                .bounds(left, top + 238, compact, 19).build());
 
+        int x = 10;
+        int rowY = 10;
         addRenderableWidget(Button.builder(Component.literal("New"), button -> newProject())
-                .bounds(174, 12, 48, 20).build());
+                .bounds(x, rowY, 40, 20).build());
+        x += 43;
         addRenderableWidget(Button.builder(Component.literal("Open"), button -> openProjectBrowser())
-                .bounds(226, 12, 52, 20).build());
+                .bounds(x, rowY, 44, 20).build());
+        x += 47;
         addRenderableWidget(Button.builder(Component.literal("Save"), button -> saveProject())
-                .bounds(282, 12, 52, 20).build());
-
-        projectNameField = new EditBox(this.font, 340, 12, 142, 20, Component.literal("Project name"));
+                .bounds(x, rowY, 44, 20).build());
+        x += 47;
+        int rightReserved = 122;
+        int nameWidth = Math.max(48, Math.min(142, this.width - x - rightReserved - 18));
+        projectNameField = new EditBox(this.font, x, rowY, nameWidth, 20, Component.literal("Project name"));
         projectNameField.setMaxLength(64);
         projectNameField.setValue(project.name);
         addRenderableWidget(projectNameField);
 
-        addRenderableWidget(Button.builder(Component.literal("Add Cube"), button -> addCube())
-                .bounds(490, 12, 68, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Duplicate"), button -> duplicateSelected())
-                .bounds(562, 12, 68, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Delete"), button -> deleteSelected())
-                .bounds(634, 12, 58, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("2D Editor"), button ->
+        addRenderableWidget(Button.builder(Component.literal("2D PNG"), button ->
                 this.minecraft.gui.setScreen(new Canvas2DScreen(this)))
-                .bounds(700, 12, 68, 20).build());
+                .bounds(this.width - 120, rowY, 58, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Gallery"), button -> returnToParent())
-                .bounds(this.width - 82, 12, 68, 20).build());
+                .bounds(this.width - 58, rowY, 48, 20).build());
+
+        int actionY = 35;
+        int actionX = 10;
+        addRenderableWidget(Button.builder(Component.literal("Add Cube"), button -> addCube())
+                .bounds(actionX, actionY, 58, 19).build());
+        actionX += 61;
+        addRenderableWidget(Button.builder(Component.literal("Duplicate"), button -> duplicateSelected())
+                .bounds(actionX, actionY, 62, 19).build());
+        actionX += 65;
+        addRenderableWidget(Button.builder(Component.literal("Delete"), button -> deleteSelected())
+                .bounds(actionX, actionY, 48, 19).build());
+        actionX += 51;
+        addRenderableWidget(Button.builder(Component.literal("Export PNG"), button -> exportViewport())
+                .bounds(actionX, actionY, 72, 19).build());
 
         int row = 0;
         for (SceneProject.SceneObject object : project.objects) {
-            if (row >= 4) break;
+            if (row >= 7) break;
             final String id = object.id;
             int y = 66 + 40 + row * 19;
+            if (y + 18 > timelineTop() - 8) break;
             addRenderableWidget(Button.builder(Component.literal(
                     (id.equals(selectedObjectId) ? "> " : "   ") + trim(object.name, 18)
             ), button -> {
                 selectedObjectId = id;
                 status = "Selected " + object.name;
                 rebuildStudioWidgets();
-            }).bounds(rightPanelLeft() + 8, y, rightPanelWidth() - 16, 18).build());
+            }).bounds(rightPanelLeft() + 6, y, rightPanelWidth() - 12, 18).build());
             row++;
         }
     }
@@ -174,18 +191,15 @@ public final class StudioScreen extends Screen {
         int centerX = (left + right) / 2;
         int centerY = (viewportTop + viewportBottom) / 2;
 
-        graphics.text(this.font, "CRAFTSHOP", 18, 14, 0xFFFFFFFF, true);
-        graphics.text(this.font, "3D STUDIO", 104, 14, 0xFF55DDEE, true);
-        graphics.text(this.font, "File    Edit    View    Add    Object    Render    Help",
-                18, 46, 0xFFB9C4D1, false);
-        graphics.text(this.font, trim(status, 28), Math.max(320, this.width - 190), 46, 0xFF9DDDAA, false);
+        graphics.text(this.font, "CRAFTSHOP  /  3D SCENE", 12, 57, 0xFF55DDEE, true);
+        graphics.text(this.font, trim(status, 34), Math.max(150, this.width - this.font.width(trim(status, 34)) - 12), 57, 0xFF9DDDAA, false);
 
         graphics.text(this.font, "TOOL SHELF", 18, 68, 0xFF9AA8B8, false);
         graphics.text(this.font, "TRANSFORM", 18, 238, 0xFF6F8194, false);
         graphics.text(this.font, "Active: " + activeTool, 18, 255, 0xFFB5C0CD, false);
 
         graphics.fill(left + 1, viewportTop + 1, right - 1, viewportTop + 20, 0xFF1C2530);
-        graphics.text(this.font, "VIEWPORT  /  PERSPECTIVE", left + 10, viewportTop + 7, 0xFF9EADBD, false);
+        graphics.text(this.font, "SCENE VIEW  /  PERSPECTIVE", left + 10, viewportTop + 7, 0xFF9EADBD, false);
         graphics.text(this.font, "SOLID", Math.max(left + 150, right - 52), viewportTop + 7, 0xFF55DDEE, false);
 
         int gridStartY = viewportTop + 28;
@@ -526,7 +540,7 @@ public final class StudioScreen extends Screen {
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
                 && mouseX >= viewportLeft() && mouseX <= viewportRight()
                 && mouseY >= 66 && mouseY <= timelineTop() - 8) {
-            if ("Select".equals(activeTool)) {
+            if ("Select".equals(activeTool) || "Block Sel".equals(activeTool) || "Entity Sel".equals(activeTool)) {
                 selectAt(mouseX, mouseY);
                 return true;
             }
@@ -550,6 +564,9 @@ public final class StudioScreen extends Screen {
         SceneProject.SceneObject nearest = null;
         double nearestDistance = 16.0 * 16.0;
         for (SceneProject.SceneObject object : project.objects) {
+            if ("Block Sel".equals(activeTool) && !"minecraft_block".equals(object.kind)
+                    && !"mesh_cube".equals(object.kind)) continue;
+            if ("Entity Sel".equals(activeTool) && !"minecraft_entity".equals(object.kind)) continue;
             int[] point = projectToScreen(object.transform.x, object.transform.y, object.transform.z);
             double dx = point[0] - mouseX;
             double dy = point[1] - mouseY;
