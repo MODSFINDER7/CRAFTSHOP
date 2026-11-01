@@ -3,7 +3,7 @@
   "id": "craftshop",
   "version": "${version}",
   "name": "CraftShop",
-  "description": "A client-side creative studio for Minecraft screenshots and 3D scenes.",
+  "description": "A client-side creative studio for screenshots, layered 2D drawing, and editable 3D scenes.",
   "authors": ["MODSFINDER"],
   "license": "MIT",
   "environment": "client",
