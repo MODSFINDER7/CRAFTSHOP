@@ -206,8 +206,8 @@ public final class Canvas2DScreen extends Screen {
 
         if (document.backgroundImage != null && !document.backgroundImage.isBlank()) {
             try {
-                Path source = Path.of(document.backgroundImage);
-                if (Files.isRegularFile(source)) {
+                Path source = resolveBackgroundPath();
+                if (source != null && Files.isRegularFile(source)) {
                     GalleryTextureCache.TextureEntry texture = GalleryTextureCache.get(source);
                     if (texture != null) {
                         float scale = Math.min((float) (canvasRight() - canvasLeft()) / texture.width(),
@@ -391,10 +391,26 @@ public final class Canvas2DScreen extends Screen {
 
     private void openImagePicker() {
         this.minecraft.gui.setScreen(new CanvasImagePickerScreen(this, path -> {
-            checkpoint();
-            document.backgroundImage = path.toAbsolutePath().toString();
-            status = "Imported " + path.getFileName();
+            try {
+                Path assets = directory().resolve("assets");
+                Files.createDirectories(assets);
+                String safeName = path.getFileName().toString().replaceAll("[^A-Za-z0-9._-]", "_");
+                Path imported = assets.resolve("import-" + System.currentTimeMillis() + "-" + safeName);
+                Files.copy(path, imported);
+                checkpoint();
+                document.backgroundImage = "assets/" + imported.getFileName();
+                status = "Imported " + path.getFileName();
+            } catch (IOException exception) {
+                CraftShop.LOGGER.error("Could not copy image into CraftShop project assets", exception);
+                status = "Image import failed";
+            }
         }));
+    }
+
+    private Path resolveBackgroundPath() {
+        if (document.backgroundImage == null || document.backgroundImage.isBlank()) return null;
+        Path stored = Path.of(document.backgroundImage);
+        return stored.isAbsolute() ? stored : directory().resolve(stored).normalize();
     }
 
     private void applyImageFilter(String filter) {
@@ -402,7 +418,8 @@ public final class Canvas2DScreen extends Screen {
             status = "Import an image first";
             return;
         }
-        Path sourcePath = Path.of(document.backgroundImage);
+        Path sourcePath = resolveBackgroundPath();
+        if (sourcePath == null || !Files.isRegularFile(sourcePath)) { status = "Imported image is missing"; return; }
         try {
             BufferedImage source = ImageIO.read(sourcePath.toFile());
             if (source == null) { status = "Image could not be decoded"; return; }
@@ -431,13 +448,14 @@ public final class Canvas2DScreen extends Screen {
                     output.setRGB(x, y, (a << 24) | (nr << 16) | (ng << 8) | nb);
                 }
             }
-            Files.createDirectories(directory());
-            Path filtered = directory().resolve("filtered-" + filter + "-" + System.currentTimeMillis() + ".png");
+            Path assets = directory().resolve("assets");
+            Files.createDirectories(assets);
+            Path filtered = assets.resolve("filtered-" + filter + "-" + System.currentTimeMillis() + ".png");
             ImageIO.write(output, "png", filtered.toFile());
             source.flush();
             output.flush();
             checkpoint();
-            document.backgroundImage = filtered.toAbsolutePath().toString();
+            document.backgroundImage = "assets/" + filtered.getFileName();
             status = filter + " filter applied";
         } catch (IOException | RuntimeException exception) {
             CraftShop.LOGGER.error("Could not apply image filter {}", filter, exception);
