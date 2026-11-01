@@ -87,7 +87,7 @@ public final class StudioScreen extends Screen {
         projectNameField.setValue(project.name);
         addRenderableWidget(projectNameField);
 
-        addRenderableWidget(Button.builder(Component.literal("Add Empty"), button -> addEmpty())
+        addRenderableWidget(Button.builder(Component.literal("Add Cube"), button -> addCube())
                 .bounds(490, 12, 68, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Duplicate"), button -> duplicateSelected())
                 .bounds(562, 12, 68, 20).build());
@@ -202,16 +202,15 @@ public final class StudioScreen extends Screen {
 
             boolean selected = object.id.equals(selectedObjectId);
             int markerColor = selected ? 0xFFFFD166 : 0xFF55DDEE;
-            graphics.fill(x - 4, y - 4, x + 5, y + 5, markerColor);
-            graphics.horizontalLine(x - 12, x + 12, y, selected ? 0xFFFFD166 : 0xFF4C8ED8);
-            graphics.verticalLine(x, y - 12, y + 12, selected ? 0xFFFFD166 : 0xFF55B879);
+            drawWireCube(graphics, object, selected ? 0xFFFFD166 : 0xFF7B91A8);
+            graphics.fill(x - 3, y - 3, x + 4, y + 4, markerColor);
             if (selected) graphics.outline(x - 7, y - 7, 14, 14, 0xFFFFFFFF);
             graphics.text(this.font, object.name, x + 13, y - 4, selected ? 0xFFFFD166 : 0xFFD0D9E2, false);
         }
 
         if (project.objects.isEmpty()) {
             graphics.centeredText(this.font, "Empty scene", centerX, centerY + 76, 0xFF8495A8);
-            graphics.centeredText(this.font, "Use Add Empty to create a transformable scene object.",
+            graphics.centeredText(this.font, "Use Add Cube to create a transformable 3D object.",
                     centerX, centerY + 91, 0xFF68798B);
         }
 
@@ -269,6 +268,64 @@ public final class StudioScreen extends Screen {
                 10, this.height - 7, 0xFF7F8D9C, false);
         graphics.text(this.font, "G Move  R Rotate  S Scale  Ctrl+Z Undo  Ctrl+Y Redo",
                 Math.max(260, this.width - 310), this.height - 7, 0xFF7F8D9C, false);
+    }
+
+    private void drawWireCube(GuiGraphicsExtractor graphics, SceneProject.SceneObject object, int color) {
+        float half = 0.5F;
+        float[][] local = {
+                {-half, -half, -half}, {half, -half, -half},
+                {half, half, -half}, {-half, half, -half},
+                {-half, -half, half}, {half, -half, half},
+                {half, half, half}, {-half, half, half}
+        };
+        int[][] edges = {
+                {0, 1}, {1, 2}, {2, 3}, {3, 0},
+                {4, 5}, {5, 6}, {6, 7}, {7, 4},
+                {0, 4}, {1, 5}, {2, 6}, {3, 7}
+        };
+        int[][] projected = new int[8][];
+        for (int i = 0; i < local.length; i++) {
+            projected[i] = projectObjectPoint(object, local[i][0], local[i][1], local[i][2]);
+        }
+        for (int[] edge : edges) {
+            drawLine(graphics, projected[edge[0]][0], projected[edge[0]][1],
+                    projected[edge[1]][0], projected[edge[1]][1], color);
+        }
+    }
+
+    private int[] projectObjectPoint(SceneProject.SceneObject object, float localX, float localY, float localZ) {
+        SceneProject.Transform transform = object.transform;
+        double x = localX * transform.scaleX;
+        double y = localY * transform.scaleY;
+        double z = localZ * transform.scaleZ;
+
+        double rx = Math.toRadians(transform.rotationX);
+        double ry = Math.toRadians(transform.rotationY);
+        double rz = Math.toRadians(transform.rotationZ);
+
+        double y1 = y * Math.cos(rx) - z * Math.sin(rx);
+        double z1 = y * Math.sin(rx) + z * Math.cos(rx);
+        double x2 = x * Math.cos(ry) + z1 * Math.sin(ry);
+        double z2 = -x * Math.sin(ry) + z1 * Math.cos(ry);
+        double x3 = x2 * Math.cos(rz) - y1 * Math.sin(rz);
+        double y3 = x2 * Math.sin(rz) + y1 * Math.cos(rz);
+
+        return projectToScreen(transform.x + (float) x3, transform.y + (float) y3,
+                transform.z + (float) z2);
+    }
+
+    private static void drawLine(GuiGraphicsExtractor graphics, int x1, int y1, int x2, int y2, int color) {
+        int steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
+        if (steps == 0) {
+            graphics.fill(x1, y1, x1 + 2, y1 + 2, color);
+            return;
+        }
+        for (int step = 0; step <= steps; step++) {
+            float progress = (float) step / steps;
+            int x = Math.round(x1 + (x2 - x1) * progress);
+            int y = Math.round(y1 + (y2 - y1) * progress);
+            graphics.fill(x, y, x + 2, y + 2, color);
+        }
     }
 
     private int[] projectToScreen(float worldX, float worldY, float worldZ) {
@@ -336,11 +393,12 @@ public final class StudioScreen extends Screen {
         if (selectedObject() == null) selectedObjectId = null;
     }
 
-    private void addEmpty() {
+    private void addCube() {
         checkpoint();
         SceneProject.SceneObject object = new SceneProject.SceneObject();
-        object.name = "Empty " + (project.objects.size() + 1);
-        object.kind = "empty";
+        object.name = "Cube " + (project.objects.size() + 1);
+        object.kind = "mesh_cube";
+        object.transform.x = project.objects.size() * 1.5F;
         project.objects.add(object);
         selectedObjectId = object.id;
         status = "Added " + object.name;
