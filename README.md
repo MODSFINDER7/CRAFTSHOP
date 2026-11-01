@@ -43,7 +43,13 @@ The gallery includes an entry point to a Blender-inspired Studio interface. The 
 - A timeline area
 - Select, move, rotate, scale, orbit, pan and zoom tool selectors
 
-The viewport and transform tools are interface placeholders at this stage. Actual scene rendering and manipulation are planned for Milestone 3. No real Minecraft world blocks or entities are modified by the Studio.
+The viewport and transform tools are still being developed. The first Milestone 3 foundations are now present:
+- Editable scene data model with camera and object transforms
+- Save projects as readable `.craftshop` JSON files
+- Browse and reopen saved projects
+- Mouse-wheel zoom in the viewport, stored with the camera settings
+
+Actual 3D scene rendering, orbit/pan controls, selection, object transforms and undo/redo remain in Milestone 3. No real Minecraft world blocks or entities are modified by the Studio.
 
 ## Build and test policy
 
