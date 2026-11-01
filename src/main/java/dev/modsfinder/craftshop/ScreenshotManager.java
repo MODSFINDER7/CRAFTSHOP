@@ -157,8 +157,12 @@ public final class ScreenshotManager {
         if (safeName.isBlank()) return null;
 
         Path target = craftShopDirectory.resolve(safeName + ".png").normalize();
-        if (!target.getParent().equals(craftShopDirectory.normalize()) || Files.exists(target)) return null;
+        if (!target.getParent().equals(craftShopDirectory.normalize())) return null;
         try {
+            if (Files.exists(target)) {
+                if (Files.isSameFile(screenshot, target)) return screenshot;
+                return null;
+            }
             Path renamed = Files.move(screenshot, target);
             GalleryTextureCache.invalidate(screenshot);
             return renamed;
