@@ -46,6 +46,7 @@ public final class Canvas2DScreen extends Screen {
     private int cropEndX;
     private int cropEndY;
     private EditBox textField;
+    private EditBox projectNameField;
     private String status = "Ready";
 
     public Canvas2DScreen(Screen parent) {
@@ -92,7 +93,7 @@ public final class Canvas2DScreen extends Screen {
 
         addRenderableWidget(Button.builder(Component.literal("New"), b -> newDocument())
                 .bounds(172, 12, 48, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Open"), b -> openLatest())
+        addRenderableWidget(Button.builder(Component.literal("Open"), b -> openProjectPicker())
                 .bounds(224, 12, 52, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Save"), b -> saveDocument())
                 .bounds(280, 12, 52, 20).build());
@@ -121,6 +122,11 @@ public final class Canvas2DScreen extends Screen {
                 .bounds(662, 12, 82, 20).build());
         addRenderableWidget(Button.builder(Component.literal("3D Studio"), b -> returnToParent())
                 .bounds(this.width - 100, 12, 88, 20).build());
+
+        projectNameField = new EditBox(this.font, 116, 44, 190, 20, Component.literal("Project name"));
+        projectNameField.setMaxLength(48);
+        projectNameField.setValue(document.name == null ? "Untitled Canvas" : document.name);
+        addRenderableWidget(projectNameField);
 
         textField = new EditBox(this.font, this.width - 178, 104, 158, 20, Component.literal("Text to add"));
         textField.setMaxLength(120);
@@ -203,6 +209,7 @@ public final class Canvas2DScreen extends Screen {
             if (activeColor == PALETTE[i]) graphics.outline(sx + 1, sy + 1, 68, 18, 0xFF00D8FF);
         }
         graphics.text(font, "CRAFTSHOP", 18, 14, 0xFFFFFFFF, true);
+        graphics.text(font, "PROJECT", 16, 50, 0xFF9AA8B8, false);
         graphics.text(font, "2D IMAGE EDITOR", 104, 14, 0xFF55DDEE, true);
         graphics.text(font, "TOOLS", 16, 54, 0xFF9AA8B8, false);
         graphics.text(font, "TEXT", width - 174, 82, 0xFF55DDEE, true);
@@ -573,6 +580,7 @@ public final class Canvas2DScreen extends Screen {
             document = restored;
             activeLayer = Math.max(0, Math.min(activeLayer, document.layers.size() - 1));
             layerPage = activeLayer / 5;
+            if (projectNameField != null) projectNameField.setValue(document.name);
         }
     }
 
@@ -587,6 +595,7 @@ public final class Canvas2DScreen extends Screen {
         document = new CanvasDocument();
         activeLayer = 0;
         layerPage = 0;
+        if (projectNameField != null) projectNameField.setValue(document.name);
         status = "New canvas";
         refreshWidgets();
     }
@@ -599,6 +608,9 @@ public final class Canvas2DScreen extends Screen {
     private void saveDocument() {
         try {
             Files.createDirectories(directory());
+            String requestedName = projectNameField == null ? document.name : projectNameField.getValue().trim();
+            if (requestedName == null || requestedName.isBlank()) requestedName = "Untitled Canvas";
+            document.name = requestedName;
             String safe = document.name.replaceAll("[^A-Za-z0-9._-]", "_");
             Path file = directory().resolve(safe + ".craftshop2d");
             Files.writeString(file, GSON.toJson(document));
@@ -609,30 +621,27 @@ public final class Canvas2DScreen extends Screen {
         }
     }
 
-    private void openLatest() {
+    private void openProjectPicker() {
+        this.minecraft.gui.setScreen(new CanvasProjectPickerScreen(this, this::loadDocument));
+    }
+
+    private void loadDocument(Path selectedFile) {
         try {
-            Files.createDirectories(directory());
-            try (var files = Files.list(directory())) {
-                Path latest = files.filter(Files::isRegularFile)
-                        .filter(path -> path.toString().endsWith(".craftshop2d"))
-                        .max(java.util.Comparator.comparingLong(path -> path.toFile().lastModified()))
-                        .orElse(null);
-                if (latest == null) { status = "No saved canvas found"; return; }
-                CanvasDocument loaded = GSON.fromJson(Files.readString(latest), CanvasDocument.class);
-                if (loaded == null || loaded.layers == null || loaded.layers.isEmpty()) {
-                    status = "Invalid canvas file";
-                    return;
-                }
-                document = loaded;
-                undoHistory.clear();
-                redoHistory.clear();
-                activeLayer = 0;
-                layerPage = 0;
-                status = "Opened " + latest.getFileName();
-                refreshWidgets();
+            CanvasDocument loaded = GSON.fromJson(Files.readString(selectedFile), CanvasDocument.class);
+            if (loaded == null || loaded.layers == null || loaded.layers.isEmpty()) {
+                status = "Invalid canvas file";
+                return;
             }
+            document = loaded;
+            undoHistory.clear();
+            redoHistory.clear();
+            activeLayer = 0;
+            layerPage = 0;
+            if (projectNameField != null) projectNameField.setValue(document.name);
+            status = "Opened " + selectedFile.getFileName();
+            refreshWidgets();
         } catch (Exception exception) {
-            CraftShop.LOGGER.error("Could not open CraftShop 2D document", exception);
+            CraftShop.LOGGER.error("Could not open CraftShop 2D document {}", selectedFile, exception);
             status = "Open failed";
         }
     }
