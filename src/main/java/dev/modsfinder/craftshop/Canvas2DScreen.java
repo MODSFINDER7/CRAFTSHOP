@@ -460,6 +460,7 @@ public final class Canvas2DScreen extends Screen {
         checkpoint();
         document.layers.add(new Layer("Layer " + (document.layers.size() + 1)));
         activeLayer = document.layers.size() - 1;
+        layerPage = activeLayer / 5;
         refreshWidgets();
         status = "Layer added";
     }
@@ -469,6 +470,7 @@ public final class Canvas2DScreen extends Screen {
         checkpoint();
         document.layers.remove(activeLayer);
         activeLayer = Math.max(0, activeLayer - 1);
+        layerPage = activeLayer / 5;
         refreshWidgets();
         status = "Layer deleted";
     }
@@ -478,6 +480,7 @@ public final class Canvas2DScreen extends Screen {
         Layer layer = currentLayer();
         layer.visible = !layer.visible;
         status = layer.name + (layer.visible ? " visible" : " hidden");
+        refreshWidgets();
     }
 
     private void resetCrop() {
@@ -499,7 +502,7 @@ public final class Canvas2DScreen extends Screen {
 
     private void checkpoint() {
         undoHistory.push(GSON.toJson(document));
-        while (undoHistory.size() > 40) undoHistory.removeLast();
+        while (undoHistory.size() > 20) undoHistory.removeLast();
         redoHistory.clear();
     }
 
@@ -524,6 +527,7 @@ public final class Canvas2DScreen extends Screen {
         if (restored != null && restored.layers != null && !restored.layers.isEmpty()) {
             document = restored;
             activeLayer = Math.max(0, Math.min(activeLayer, document.layers.size() - 1));
+            layerPage = activeLayer / 5;
         }
     }
 
@@ -537,6 +541,7 @@ public final class Canvas2DScreen extends Screen {
         checkpoint();
         document = new CanvasDocument();
         activeLayer = 0;
+        layerPage = 0;
         status = "New canvas";
         refreshWidgets();
     }
@@ -577,6 +582,7 @@ public final class Canvas2DScreen extends Screen {
                 undoHistory.clear();
                 redoHistory.clear();
                 activeLayer = 0;
+                layerPage = 0;
                 status = "Opened " + latest.getFileName();
                 refreshWidgets();
             }
