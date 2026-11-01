@@ -12,7 +12,6 @@ import java.nio.file.Path;
 public final class ScreenshotGalleryScreen extends Screen {
     private Path[] screenshots = new Path[0];
     private Path selected;
-    private int page;
 
     public ScreenshotGalleryScreen() {
         super(Component.literal("CraftShop Gallery"));
@@ -20,9 +19,9 @@ public final class ScreenshotGalleryScreen extends Screen {
 
     @Override
     protected void init() {
-        refresh();
+        loadScreenshots();
         int left = Math.max(12, this.width / 2 - 190);
-        int top = 42;
+        int top = 54;
 
         this.addRenderableWidget(Button.builder(Component.literal("Refresh"), button -> refresh())
                 .bounds(left, this.height - 34, 80, 20).build());
@@ -49,9 +48,12 @@ public final class ScreenshotGalleryScreen extends Screen {
         }
     }
 
-    private void refresh() {
+    private void loadScreenshots() {
         screenshots = ScreenshotManager.getScreenshots();
         if (selected != null && !selected.toFile().exists()) selected = null;
+    }
+
+    private void refresh() {
         clearWidgets();
         init();
     }
@@ -70,16 +72,16 @@ public final class ScreenshotGalleryScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         graphics.text(this.font, "CRAFTSHOP  /  SCREENSHOT GALLERY", 14, 14, 0xFFFFFFFF, true);
-        graphics.text(this.font, "Saved in .minecraft/craftshop/screenshots", 14, 28, 0xFFAAAAAA, false);
+        graphics.text(this.font, "Saved in .minecraft/craftshop/screenshots", 14, 29, 0xFFAAAAAA, false);
         graphics.text(this.font, "Screenshots: " + screenshots.length, this.width - 125, 14, 0xFFAAAAAA, false);
 
         int previewX = this.width / 2 + 80;
-        graphics.text(this.font, "PREVIEW", previewX, 48, 0xFFFFFFFF, true);
+        graphics.text(this.font, "PREVIEW", previewX, 54, 0xFFFFFFFF, true);
         if (selected != null) {
-            graphics.text(this.font, selected.getFileName().toString(), previewX, 68, 0xFF55FFFF, false);
-            graphics.text(this.font, "Open Folder to view the full-size image.", previewX, 88, 0xFFBBBBBB, false);
+            graphics.text(this.font, selected.getFileName().toString(), previewX, 75, 0xFF55FFFF, false);
+            graphics.text(this.font, "Open Folder to view the full-size image.", previewX, 95, 0xFFBBBBBB, false);
         } else {
-            graphics.text(this.font, "Select a screenshot from the list.", previewX, 68, 0xFFBBBBBB, false);
+            graphics.text(this.font, "Select a screenshot from the list.", previewX, 75, 0xFFBBBBBB, false);
         }
         graphics.text(this.font, "Press O to open this gallery. Press Z in-world to capture.", 14, this.height - 52, 0xFFAAAAAA, false);
     }
