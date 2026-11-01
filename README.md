@@ -28,9 +28,11 @@ Minecraft's screenshot capture is used, then new PNG files are copied into:
 
 The gallery includes:
 - Cached, downscaled thumbnails and a full-size selected-image preview
-- Pagination
+- Pagination for larger screenshot collections
 - Rename and delete controls
 - Open-folder and refresh controls
+- Collision-safe filenames when importing screenshots
+- A bounded texture cache so browsing many screenshots does not retain every image texture in GPU memory
 
 The original Minecraft screenshot is left untouched when a gallery copy is renamed or deleted.
 
