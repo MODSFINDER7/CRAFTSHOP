@@ -97,18 +97,18 @@ public final class Canvas2DScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Bright -"), b -> adjustBrightness(-12))
                 .bounds(586, 12, 72, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Import Image"), b -> openImagePicker())
-                .bounds(this.width - 178, 250, 158, 20).build());
+                .bounds(this.width - 178, 310, 158, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Grayscale"), b -> applyImageFilter("grayscale"))
-                .bounds(this.width - 178, 276, 76, 20).build());
+                .bounds(this.width - 178, 336, 76, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Invert"), b -> applyImageFilter("invert"))
-                .bounds(this.width - 98, 276, 78, 20).build());
+                .bounds(this.width - 98, 336, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Sepia"), b -> applyImageFilter("sepia"))
-                .bounds(this.width - 178, 300, 76, 20).build());
+                .bounds(this.width - 178, 360, 76, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Reset Image"), b -> {
             checkpoint();
             document.backgroundImage = "";
             status = "Background image cleared";
-        }).bounds(this.width - 98, 300, 78, 20).build());
+        }).bounds(this.width - 98, 360, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Export PNG"), b -> exportCanvas())
                 .bounds(662, 12, 82, 20).build());
         addRenderableWidget(Button.builder(Component.literal("3D Studio"), b -> returnToParent())
@@ -179,7 +179,7 @@ public final class Canvas2DScreen extends Screen {
             int col = i % 2;
             int row = i / 2;
             int sx = this.width - 174 + col * 78;
-            int sy = 174 + row * 24;
+            int sy = 170 + row * 22;
             graphics.fill(sx + 2, sy + 2, sx + 68, sy + 18, PALETTE[i]);
             if (activeColor == PALETTE[i]) graphics.outline(sx + 1, sy + 1, 68, 18, 0xFF00D8FF);
         }
@@ -190,7 +190,7 @@ public final class Canvas2DScreen extends Screen {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         for (int i = 0; i < PALETTE.length; i++) {
             int sx = this.width - 174 + (i % 2) * 78;
-            int sy = 174 + (i / 2) * 24;
+            int sy = 170 + (i / 2) * 22;
             graphics.fill(sx + 2, sy + 2, sx + 68, sy + 18, PALETTE[i]);
             if (activeColor == PALETTE[i]) graphics.outline(sx + 1, sy + 1, 68, 18, 0xFF00D8FF);
         }
@@ -202,7 +202,7 @@ public final class Canvas2DScreen extends Screen {
         graphics.text(font, "Active layer: " + activeLayerName(), width - 178, height - 66, 0xFFB5C0CD, false);
         graphics.text(font, "Brush: " + brushSize + " px", 14, 282, 0xFFB5C0CD, false);
         graphics.text(font, "Tool: " + tool, 14, 298, 0xFFB5C0CD, false);
-        graphics.text(font, "Ink brightness: " + document.brightness, width - 178, 226, 0xFFB5C0CD, false);
+        graphics.text(font, "Ink brightness: " + document.brightness, width - 178, 284, 0xFFB5C0CD, false);
 
         if (document.backgroundImage != null && !document.backgroundImage.isBlank()) {
             try {
