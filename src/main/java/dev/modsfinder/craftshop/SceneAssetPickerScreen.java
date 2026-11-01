@@ -92,7 +92,7 @@ public final class SceneAssetPickerScreen extends Screen {
         } else {
             for (Identifier id : BuiltInRegistries.BLOCK.keySet()) {
                 Block block = BuiltInRegistries.BLOCK.getValue(id);
-                if (block == null || block.asItem().toString().equals("air")) continue;
+                if (block == null || block.defaultBlockState().isAir()) continue;
                 if (query.isEmpty() || id.toString().contains(query)) {
                     assets.add(new SceneAsset(id.toString(), id.toString(), false));
                 }
@@ -103,8 +103,10 @@ public final class SceneAssetPickerScreen extends Screen {
     }
 
     private void rebuild() {
+        boolean keepFocus = search != null && search.isFocused();
         clearWidgets();
         init();
+        if (keepFocus) search.setFocused(true);
     }
 
     @Override
