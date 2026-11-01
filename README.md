@@ -36,22 +36,33 @@ The gallery includes:
 
 The original Minecraft screenshot is left untouched when a gallery copy is renamed or deleted.
 
-## Milestone 2: 3D Studio interface
+## Milestone 2: Blender-inspired Studio interface
 
-The gallery includes an entry point to a Blender-inspired Studio interface. The current interface shell contains:
-- A left-side tool shelf
-- A central viewport area
-- Scene outliner and properties panels
-- A timeline area
-- Select, move, rotate, scale, orbit, pan and zoom tool selectors
+The gallery opens a dedicated Studio workspace containing:
+- Top application bar and project controls
+- Left-side tool shelf
+- Central 3D viewport area with grid and axis indicators
+- Scene Outliner
+- Properties panel
+- Timeline and frame ruler
+- Status bar and project information
 
-The viewport and transform tools are still being developed. The first Milestone 3 foundations are now present:
-- Editable scene data model with camera and object transforms
-- Save projects as readable `.craftshop` JSON files
-- Browse and reopen saved projects
-- Mouse-wheel zoom in the viewport, stored with the camera settings
+The workspace layout is in place. The viewport renderer and editor interactions are being implemented in Milestone 3.
 
-Actual 3D scene rendering, orbit/pan controls, selection, object transforms and undo/redo remain in Milestone 3. No real Minecraft world blocks or entities are modified by the Studio.
+## Milestone 3: Core 3D editor functionality
+
+The current editor foundation includes:
+- Editable scene objects with position, rotation, scale, visibility and lock state
+- Wireframe cube primitives in the viewport
+- Viewport selection and Outliner selection
+- Move, rotate and uniform scale tools using viewport dragging
+- Camera orbit, pan and zoom controls
+- Add, duplicate and delete scene objects
+- Undo/redo history (Ctrl+Z / Ctrl+Y)
+- Keyboard tool shortcuts (G = Move, R = Rotate, S = Scale)
+- Project save/load using editable `.craftshop` project files
+
+The current primitive renderer is a lightweight wireframe editor representation. Minecraft block models, entity models, player skins and animation tracks belong to Milestone 4. No real Minecraft world blocks or entities are modified by the Studio.
 
 ## Build and test policy
 
