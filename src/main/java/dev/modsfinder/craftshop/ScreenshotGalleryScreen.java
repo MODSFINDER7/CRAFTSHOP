@@ -77,6 +77,10 @@ public final class ScreenshotGalleryScreen extends Screen {
         this.addRenderableWidget(Button.builder(Component.literal("Rename"), button -> renameSelected())
                 .bounds(previewX + 70, bottom, 72, 20).build());
 
+        this.addRenderableWidget(Button.builder(Component.literal("3D Studio"), button ->
+                this.minecraft.gui.setScreen(new StudioScreen(this)))
+                .bounds(this.width - 190, 12, 88, 20).build());
+
         this.addRenderableWidget(Button.builder(Component.literal("Close"), button -> onClose())
                 .bounds(this.width - 88, bottom, 66, 20).build());
 
