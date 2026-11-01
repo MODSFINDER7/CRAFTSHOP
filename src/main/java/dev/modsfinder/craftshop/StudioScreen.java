@@ -99,6 +99,9 @@ public final class StudioScreen extends Screen {
                 .bounds(562, 12, 68, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Delete"), button -> deleteSelected())
                 .bounds(634, 12, 58, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("2D Editor"), button ->
+                this.minecraft.gui.setScreen(new Canvas2DScreen(this)))
+                .bounds(700, 12, 68, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Gallery"), button -> returnToParent())
                 .bounds(this.width - 82, 12, 68, 20).build());
 
