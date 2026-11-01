@@ -47,7 +47,7 @@ The gallery opens a dedicated Studio workspace containing:
 - Timeline and frame ruler
 - Status bar and project information
 
-The workspace layout is in place. The viewport renderer and editor interactions are being implemented in Milestone 3.
+The workspace includes a separate **2D Image Editor** alongside the 3D Studio. The 2D editor provides a white canvas, brush and eraser strokes, text placement, a colour palette, adjustable brush size, multiple layers with visibility toggles, crop bounds, brightness adjustment, undo-last-item, JSON-based `.craftshop2d` save/open, and PNG viewport export. The editor is a lightweight raster-like GUI drawing workspace; it is not yet a full Photoshop replacement with imported-image pixel filters, masks, selection transforms, or professional typography controls.
 
 ## Milestone 3: Core 3D editor functionality
 
@@ -64,7 +64,7 @@ The current editor foundation includes:
 
 The editor now includes a searchable vanilla asset picker for registered blocks and entities. Blocks are previewed through isolated Block Display entities and living entities through the current entity render-state pipeline. Each scene object stores its Minecraft registry ID, so projects remain editable and portable across sessions. The preview entities are never added to the live world entity list, and the editor does not place or modify world blocks. Player mannequin assets are available when registered by the target game version.
 
-## Milestone 5: PNG viewport export
+## Milestone 4: Vanilla blocks and entities
 
 The Studio has an **Export PNG** action. It captures the current Studio viewport, crops away the surrounding editor panels, and saves the PNG to the operating system Pictures folder under `Pictures/CraftShop`. The editable `.craftshop` project remains separate from the exported image.
 
