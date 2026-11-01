@@ -4,6 +4,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -48,7 +50,7 @@ public final class SceneAssetPickerScreen extends Screen {
             page++;
             rebuild();
         }).bounds(100, height - 34, 76, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> minecraft.gui.setScreen(parent))
+        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> minecraft.setScreen(parent))
                 .bounds(width - 94, height - 34, 76, 20).build());
         addAssetButtons();
     }
@@ -73,7 +75,7 @@ public final class SceneAssetPickerScreen extends Screen {
             int y = 72 + row * 24;
             addRenderableWidget(Button.builder(Component.literal(asset.displayName()), button -> {
                 onPick.accept(asset);
-                minecraft.gui.setScreen(parent);
+                minecraft.setScreen(parent);
             }).bounds(x, y, columnWidth, 20).build());
         }
     }
@@ -84,7 +86,7 @@ public final class SceneAssetPickerScreen extends Screen {
         if (entities) {
             for (Identifier id : BuiltInRegistries.ENTITY_TYPE.keySet()) {
                 EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(id);
-                if (type == null || type == EntityType.PLAYER || type == EntityType.BLOCK_DISPLAY) continue;
+                if (type == null || id.getPath().equals("player") || id.getPath().equals("block_display")) continue;
                 if (query.isEmpty() || id.toString().contains(query)) {
                     assets.add(new SceneAsset(id.toString(), id.toString(), true));
                 }
@@ -126,9 +128,9 @@ public final class SceneAssetPickerScreen extends Screen {
     }
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(KeyEvent event) {
         if (search != null && search.isFocused()) {
-            boolean handled = search.keyPressed(keyCode, scanCode, modifiers);
+            boolean handled = search.keyPressed(event);
             if (handled) {
                 filter = search.getValue();
                 page = 0;
@@ -137,24 +139,24 @@ public final class SceneAssetPickerScreen extends Screen {
                 return true;
             }
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(event);
     }
 
     @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        if (search != null && search.isFocused() && search.charTyped(codePoint, modifiers)) {
+    public boolean charTyped(CharacterEvent event) {
+        if (search != null && search.isFocused() && search.charTyped(event)) {
             filter = search.getValue();
             page = 0;
             rebuild();
             search.setFocused(true);
             return true;
         }
-        return super.charTyped(codePoint, modifiers);
+        return super.charTyped(event);
     }
 
     @Override
     public void onClose() {
-        minecraft.gui.setScreen(parent);
+        minecraft.setScreen(parent);
     }
 
     @Override
