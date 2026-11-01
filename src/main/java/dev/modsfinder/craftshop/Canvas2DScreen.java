@@ -67,6 +67,10 @@ public final class Canvas2DScreen extends Screen {
                 .bounds(x, y + 160, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Clear"), b -> clearLayer())
                 .bounds(x, y + 184, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Layer On/Off"), b -> toggleLayer())
+                .bounds(x, y + 208, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Reset Crop"), b -> resetCrop())
+                .bounds(x, y + 232, 78, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("New"), b -> newDocument())
                 .bounds(172, 12, 48, 20).build());
@@ -132,6 +136,14 @@ public final class Canvas2DScreen extends Screen {
         graphics.fill(canvasLeft(), canvasTop(), canvasRight(), canvasBottom(), 0xFFFFFFFF);
         graphics.outline(canvasLeft() - 1, canvasTop() - 1,
                 canvasRight() - canvasLeft() + 2, canvasBottom() - canvasTop() + 2, 0xFF596879);
+        for (int i = 0; i < PALETTE.length; i++) {
+            int col = i % 2;
+            int row = i / 2;
+            int sx = this.width - 174 + col * 78;
+            int sy = 174 + row * 24;
+            graphics.fill(sx + 2, sy + 2, sx + 68, sy + 18, PALETTE[i]);
+            if (activeColor == PALETTE[i]) graphics.outline(sx + 1, sy + 1, 68, 18, 0xFF00D8FF);
+        }
     }
 
     @Override
@@ -172,8 +184,15 @@ public final class Canvas2DScreen extends Screen {
         }
 
         if (document.cropWidth > 0 && document.cropHeight > 0) {
-            graphics.outline(Math.round(document.cropX), Math.round(document.cropY),
-                    Math.round(document.cropWidth), Math.round(document.cropHeight), 0xFF00A6D8);
+            int cx = Math.round(document.cropX);
+            int cy = Math.round(document.cropY);
+            int cw = Math.round(document.cropWidth);
+            int ch = Math.round(document.cropHeight);
+            graphics.fill(canvasLeft(), canvasTop(), canvasRight(), cy, 0x66000000);
+            graphics.fill(canvasLeft(), cy + ch, canvasRight(), canvasBottom(), 0x66000000);
+            graphics.fill(canvasLeft(), cy, cx, cy + ch, 0x66000000);
+            graphics.fill(cx + cw, cy, canvasRight(), cy + ch, 0x66000000);
+            graphics.outline(cx, cy, cw, ch, 0xFF00A6D8);
         }
         if (cropping) {
             graphics.outline(Math.min(cropStartX, cropEndX), Math.min(cropStartY, cropEndY),
@@ -327,6 +346,20 @@ public final class Canvas2DScreen extends Screen {
         status = "Layer deleted";
     }
 
+    private void toggleLayer() {
+        Layer layer = currentLayer();
+        layer.visible = !layer.visible;
+        status = layer.name + (layer.visible ? " visible" : " hidden");
+    }
+
+    private void resetCrop() {
+        document.cropX = 0;
+        document.cropY = 0;
+        document.cropWidth = 0;
+        document.cropHeight = 0;
+        status = "Crop reset";
+    }
+
     private void clearLayer() {
         Layer layer = currentLayer();
         layer.strokes.clear();
@@ -398,9 +431,11 @@ public final class Canvas2DScreen extends Screen {
 
     private void exportCanvas() {
         status = "Exporting canvas...";
-        SceneExporter.exportViewport(this.minecraft, canvasLeft(), canvasTop(),
-                canvasRight() - canvasLeft(), canvasBottom() - canvasTop(),
-                message -> status = message);
+        int x = document.cropWidth > 0 ? Math.round(document.cropX) : canvasLeft();
+        int y = document.cropHeight > 0 ? Math.round(document.cropY) : canvasTop();
+        int w = document.cropWidth > 0 ? Math.round(document.cropWidth) : canvasRight() - canvasLeft();
+        int h = document.cropHeight > 0 ? Math.round(document.cropHeight) : canvasBottom() - canvasTop();
+        SceneExporter.exportViewport(this.minecraft, x, y, w, h, message -> status = message);
     }
 
     private void returnToParent() {
