@@ -98,7 +98,7 @@ public final class StudioScreen extends Screen {
 
         int row = 0;
         for (SceneProject.SceneObject object : project.objects) {
-            if (row >= 6) break;
+            if (row >= 4) break;
             final String id = object.id;
             int y = 66 + 40 + row * 19;
             addRenderableWidget(Button.builder(Component.literal(
@@ -223,7 +223,7 @@ public final class StudioScreen extends Screen {
             graphics.text(this.font, "      (empty)", rightPanel + 12, viewportTop + 82, 0xFF718397, false);
         }
 
-        int propertiesTop = viewportTop + 184;
+        int propertiesTop = viewportTop + 122;
         graphics.horizontalLine(rightPanel + 8, this.width - 18, propertiesTop, 0xFF465363);
         graphics.text(this.font, "PROPERTIES", rightPanel + 10, propertiesTop + 10, 0xFF55DDEE, true);
         SceneProject.SceneObject selected = selectedObject();
@@ -233,16 +233,14 @@ public final class StudioScreen extends Screen {
             graphics.text(this.font, "viewport or Outliner.", rightPanel + 10, propertiesTop + 66, 0xFF68798B, false);
         } else {
             graphics.text(this.font, trim(selected.name, 24), rightPanel + 10, propertiesTop + 32, 0xFFFFFFFF, false);
-            graphics.text(this.font, "LOCATION", rightPanel + 10, propertiesTop + 54, 0xFFB5C0CD, false);
-            graphics.text(this.font, "X " + format(selected.transform.x) + "  Y " + format(selected.transform.y),
-                    rightPanel + 10, propertiesTop + 70, 0xFF8995A4, false);
-            graphics.text(this.font, "Z " + format(selected.transform.z), rightPanel + 10, propertiesTop + 85, 0xFF8995A4, false);
-            graphics.text(this.font, "ROTATION", rightPanel + 10, propertiesTop + 105, 0xFFB5C0CD, false);
-            graphics.text(this.font, "X " + format(selected.transform.rotationX) + "  Y " + format(selected.transform.rotationY),
-                    rightPanel + 10, propertiesTop + 121, 0xFF8995A4, false);
-            graphics.text(this.font, "SCALE", rightPanel + 10, propertiesTop + 141, 0xFFB5C0CD, false);
-            graphics.text(this.font, format(selected.transform.scaleX) + " / " + format(selected.transform.scaleY)
-                    + " / " + format(selected.transform.scaleZ), rightPanel + 10, propertiesTop + 157, 0xFF8995A4, false);
+            graphics.text(this.font, "LOC  " + format(selected.transform.x) + " / "
+                    + format(selected.transform.y) + " / " + format(selected.transform.z),
+                    rightPanel + 10, propertiesTop + 54, 0xFF8995A4, false);
+            graphics.text(this.font, "ROT  " + format(selected.transform.rotationX) + " / "
+                    + format(selected.transform.rotationY), rightPanel + 10, propertiesTop + 73, 0xFF8995A4, false);
+            graphics.text(this.font, "SCL  " + format(selected.transform.scaleX) + " / "
+                    + format(selected.transform.scaleY) + " / " + format(selected.transform.scaleZ),
+                    rightPanel + 10, propertiesTop + 92, 0xFF8995A4, false);
         }
 
         int timelineLeft = 20;
