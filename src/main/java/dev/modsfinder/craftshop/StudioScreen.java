@@ -125,6 +125,23 @@ public final class StudioScreen extends Screen {
                 18, this.height - 28, 0xFF8995A4, false);
     }
 
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        int viewportLeft = 104;
+        int viewportRight = this.width - 224;
+        int viewportTop = 42;
+        int viewportBottom = this.height - 58;
+
+        if (mouseX >= viewportLeft && mouseX <= viewportRight
+                && mouseY >= viewportTop && mouseY <= viewportBottom) {
+            float factor = (float) Math.pow(1.12, verticalAmount);
+            project.camera.zoom = Math.max(0.2F, Math.min(4.0F, project.camera.zoom * factor));
+            status = "Viewport zoom: " + String.format(java.util.Locale.ROOT, "%.2f", project.camera.zoom) + "x";
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
     private void newProject() {
         project = new SceneProject();
         activeTool = "Select";
