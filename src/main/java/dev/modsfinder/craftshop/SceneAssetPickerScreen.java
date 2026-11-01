@@ -50,7 +50,7 @@ public final class SceneAssetPickerScreen extends Screen {
             page++;
             rebuild();
         }).bounds(100, height - 34, 76, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> minecraft.setScreen(parent))
+        addRenderableWidget(Button.builder(Component.literal("Cancel"), b -> minecraft.gui.setScreen(parent))
                 .bounds(width - 94, height - 34, 76, 20).build());
         addAssetButtons();
     }
@@ -75,7 +75,7 @@ public final class SceneAssetPickerScreen extends Screen {
             int y = 72 + row * 24;
             addRenderableWidget(Button.builder(Component.literal(asset.displayName()), button -> {
                 onPick.accept(asset);
-                minecraft.setScreen(parent);
+                minecraft.gui.setScreen(parent);
             }).bounds(x, y, columnWidth, 20).build());
         }
     }
@@ -156,7 +156,7 @@ public final class SceneAssetPickerScreen extends Screen {
 
     @Override
     public void onClose() {
-        minecraft.setScreen(parent);
+        minecraft.gui.setScreen(parent);
     }
 
     @Override
