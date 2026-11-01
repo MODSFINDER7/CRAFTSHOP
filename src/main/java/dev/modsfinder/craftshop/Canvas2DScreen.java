@@ -577,11 +577,29 @@ public final class Canvas2DScreen extends Screen {
     private void restoreDocument(String json) {
         CanvasDocument restored = GSON.fromJson(json, CanvasDocument.class);
         if (restored != null && restored.layers != null && !restored.layers.isEmpty()) {
+            normalizeDocument(restored);
             document = restored;
             activeLayer = Math.max(0, Math.min(activeLayer, document.layers.size() - 1));
             layerPage = activeLayer / 5;
             if (projectNameField != null) projectNameField.setValue(document.name);
         }
+    }
+
+    private void normalizeDocument(CanvasDocument candidate) {
+        if (candidate.name == null || candidate.name.isBlank()) candidate.name = "Untitled Canvas";
+        if (candidate.backgroundImage == null) candidate.backgroundImage = "";
+        if (candidate.layers == null) candidate.layers = new ArrayList<>();
+        for (Layer layer : candidate.layers) {
+            if (layer == null) continue;
+            if (layer.name == null) layer.name = "Layer";
+            if (layer.opacity <= 0.0F) layer.opacity = 1.0F;
+            layer.opacity = Math.max(0.05F, Math.min(1.0F, layer.opacity));
+            if (layer.strokes == null) layer.strokes = new ArrayList<>();
+            if (layer.texts == null) layer.texts = new ArrayList<>();
+            for (Stroke stroke : layer.strokes) if (stroke.points == null) stroke.points = new ArrayList<>();
+        }
+        candidate.layers.removeIf(java.util.Objects::isNull);
+        if (candidate.layers.isEmpty()) candidate.layers.add(new Layer("Layer 1"));
     }
 
     private void adjustBrightness(int amount) {
@@ -632,6 +650,7 @@ public final class Canvas2DScreen extends Screen {
                 status = "Invalid canvas file";
                 return;
             }
+            normalizeDocument(loaded);
             document = loaded;
             undoHistory.clear();
             redoHistory.clear();
@@ -679,7 +698,10 @@ public final class Canvas2DScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (textField != null && textField.isFocused()) return super.keyPressed(keyCode, scanCode, modifiers);
+        if ((textField != null && textField.isFocused())
+                || (projectNameField != null && projectNameField.isFocused())) {
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
         if ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && keyCode == GLFW.GLFW_KEY_Z) {
             undo();
             return true;
