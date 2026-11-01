@@ -30,6 +30,7 @@ public final class Canvas2DScreen extends Screen {
     private int activeColor = PALETTE[0];
     private int brushSize = 5;
     private int activeLayer;
+    private int layerPage;
     private boolean drawing;
     private boolean cropping;
     private float lastX;
@@ -87,7 +88,7 @@ public final class Canvas2DScreen extends Screen {
                 .bounds(510, 12, 72, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Bright -"), b -> adjustBrightness(-12))
                 .bounds(586, 12, 72, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Import Shot"), b -> importLatestScreenshot())
+        addRenderableWidget(Button.builder(Component.literal("Import Image"), b -> openImagePicker())
                 .bounds(this.width - 178, 250, 158, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Export PNG"), b -> exportCanvas())
                 .bounds(662, 12, 82, 20).build());
@@ -110,11 +111,26 @@ public final class Canvas2DScreen extends Screen {
         }
 
         int layerY = this.height - 46;
-        for (int i = 0; i < document.layers.size() && i < 5; i++) {
-            final int index = i;
-            addRenderableWidget(Button.builder(Component.literal((i == activeLayer ? "> " : "")
-                    + (document.layers.get(i).visible ? "[on] " : "[off] ") + document.layers.get(i).name),
-                    b -> activeLayer = index).bounds(116 + i * 112, layerY, 106, 20).build());
+        int layerPages = Math.max(1, (document.layers.size() + 4) / 5);
+        layerPage = Math.max(0, Math.min(layerPage, layerPages - 1));
+        if (layerPages > 1) {
+            addRenderableWidget(Button.builder(Component.literal("<"), b -> {
+                layerPage = Math.max(0, layerPage - 1);
+                refreshWidgets();
+            }).bounds(8, layerY, 24, 20).build());
+            addRenderableWidget(Button.builder(Component.literal(">"), b -> {
+                layerPage = Math.min(layerPages - 1, layerPage + 1);
+                refreshWidgets();
+            }).bounds(this.width - 34, layerY, 24, 20).build());
+        }
+        int firstLayer = layerPage * 5;
+        for (int slot = 0; slot < 5 && firstLayer + slot < document.layers.size(); slot++) {
+            int index = firstLayer + slot;
+            addRenderableWidget(Button.builder(Component.literal((index == activeLayer ? "> " : "")
+                    + (document.layers.get(index).visible ? "[on] " : "[off] ") + document.layers.get(index).name),
+                    b -> { activeLayer = index; refreshWidgets(); })
+                    .bounds(38 + slot * Math.max(108, (this.width - 76) / 5), layerY,
+                            Math.max(96, (this.width - 90) / 5), 20).build());
         }
     }
 
@@ -352,11 +368,11 @@ public final class Canvas2DScreen extends Screen {
         return document.layers.get(activeLayer);
     }
 
-    private void importLatestScreenshot() {
-        Path[] screenshots = ScreenshotManager.getScreenshots();
-        if (screenshots.length == 0) { status = "No gallery screenshots found"; return; }
-        document.backgroundImage = screenshots[0].toAbsolutePath().toString();
-        status = "Imported " + screenshots[0].getFileName();
+    private void openImagePicker() {
+        this.minecraft.gui.setScreen(new CanvasImagePickerScreen(this, path -> {
+            document.backgroundImage = path.toAbsolutePath().toString();
+            status = "Imported " + path.getFileName();
+        }));
     }
 
     private void addText() {
