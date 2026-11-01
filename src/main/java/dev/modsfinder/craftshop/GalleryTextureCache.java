@@ -5,50 +5,101 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 
+import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
 public final class GalleryTextureCache {
-    private static final Map<Path, TextureEntry> TEXTURES = new HashMap<>();
+    private static final Map<Path, TextureEntry> PREVIEWS = new HashMap<>();
+    private static final Map<Path, TextureEntry> THUMBNAILS = new HashMap<>();
 
     private GalleryTextureCache() {}
 
     public static TextureEntry get(Path imagePath) {
         Path normalized = imagePath.toAbsolutePath().normalize();
-        TextureEntry existing = TEXTURES.get(normalized);
+        TextureEntry existing = PREVIEWS.get(normalized);
         if (existing != null) return existing;
 
         try {
             NativeImage image = NativeImage.read(normalized.toFile());
-            int width = image.getWidth();
-            int height = image.getHeight();
-            Identifier id = Identifier.fromNamespaceAndPath(
-                    "craftshop", "gallery/" + Integer.toUnsignedString(normalized.toString().hashCode(), 36)
-            );
-            DynamicTexture texture = new DynamicTexture(() -> "CraftShop gallery " + normalized.getFileName(), image);
-            Minecraft.getInstance().getTextureManager().register(id, texture);
-            TextureEntry entry = new TextureEntry(id, width, height);
-            TEXTURES.put(normalized, entry);
+            TextureEntry entry = register(normalized, "preview", image);
+            PREVIEWS.put(normalized, entry);
             return entry;
         } catch (IOException exception) {
-            CraftShop.LOGGER.error("Could not load gallery image {}", normalized, exception);
+            CraftShop.LOGGER.error("Could not load gallery preview {}", normalized, exception);
             return null;
         }
     }
 
+    public static TextureEntry getThumbnail(Path imagePath) {
+        Path normalized = imagePath.toAbsolutePath().normalize();
+        TextureEntry existing = THUMBNAILS.get(normalized);
+        if (existing != null) return existing;
+
+        try {
+            BufferedImage source = ImageIO.read(normalized.toFile());
+            if (source == null) return null;
+
+            double scale = Math.min(128.0 / source.getWidth(), 96.0 / source.getHeight());
+            int width = Math.max(1, (int) Math.round(source.getWidth() * scale));
+            int height = Math.max(1, (int) Math.round(source.getHeight() * scale));
+
+            BufferedImage scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D graphics = scaled.createGraphics();
+            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            graphics.drawImage(source, 0, 0, width, height, null);
+            graphics.dispose();
+            source.flush();
+
+            NativeImage image = new NativeImage(width, height, false);
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    image.setPixel(x, y, scaled.getRGB(x, y));
+                }
+            }
+            scaled.flush();
+
+            TextureEntry entry = register(normalized, "thumbnail", image);
+            THUMBNAILS.put(normalized, entry);
+            return entry;
+        } catch (IOException exception) {
+            CraftShop.LOGGER.error("Could not load gallery thumbnail {}", normalized, exception);
+            return null;
+        }
+    }
+
+    private static TextureEntry register(Path path, String type, NativeImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        Identifier id = Identifier.fromNamespaceAndPath(
+                "craftshop", "gallery/" + type + "_" + Integer.toUnsignedString(path.toString().hashCode(), 36)
+        );
+        DynamicTexture texture = new DynamicTexture(() -> "CraftShop " + type + " " + path.getFileName(), image);
+        Minecraft.getInstance().getTextureManager().register(id, texture);
+        return new TextureEntry(id, width, height);
+    }
+
     public static void invalidate(Path imagePath) {
         Path normalized = imagePath.toAbsolutePath().normalize();
-        TextureEntry entry = TEXTURES.remove(normalized);
-        if (entry != null) Minecraft.getInstance().getTextureManager().release(entry.id());
+        release(PREVIEWS.remove(normalized));
+        release(THUMBNAILS.remove(normalized));
     }
 
     public static void clear() {
-        for (TextureEntry entry : TEXTURES.values()) {
-            Minecraft.getInstance().getTextureManager().release(entry.id());
-        }
-        TEXTURES.clear();
+        PREVIEWS.values().forEach(GalleryTextureCache::release);
+        THUMBNAILS.values().forEach(GalleryTextureCache::release);
+        PREVIEWS.clear();
+        THUMBNAILS.clear();
+    }
+
+    private static void release(TextureEntry entry) {
+        if (entry != null) Minecraft.getInstance().getTextureManager().release(entry.id());
     }
 
     public record TextureEntry(Identifier id, int width, int height) {}
