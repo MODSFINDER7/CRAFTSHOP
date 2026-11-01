@@ -27,6 +27,12 @@ public final class StudioScreen extends Screen {
                 .bounds(left, top + 50, 68, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Scale"), button -> activeTool = "Scale")
                 .bounds(left, top + 75, 68, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Orbit"), button -> activeTool = "Orbit")
+                .bounds(left, top + 100, 68, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Pan"), button -> activeTool = "Pan")
+                .bounds(left, top + 125, 68, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Zoom"), button -> activeTool = "Zoom")
+                .bounds(left, top + 150, 68, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("Back to Gallery"), button -> returnToParent())
                 .bounds(this.width - 126, 12, 110, 20).build());
@@ -67,12 +73,14 @@ public final class StudioScreen extends Screen {
         graphics.text(this.font, "OUTLINER", rightPanelLeft + 12, 52, 0xFF55DDEE, true);
         graphics.horizontalLine(rightPanelLeft + 10, this.width - 24, 69, 0xFF465363);
         graphics.text(this.font, "Scene", rightPanelLeft + 14, 82, 0xFFFFFFFF, false);
-        graphics.text(this.font, "  Camera", rightPanelLeft + 14, 101, 0xFFB5C0CD, false);
-        graphics.text(this.font, "PROPERTIES", rightPanelLeft + 12, 143, 0xFF55DDEE, true);
-        graphics.horizontalLine(rightPanelLeft + 10, this.width - 24, 160, 0xFF465363);
-        graphics.text(this.font, "Active tool: " + activeTool, rightPanelLeft + 12, 174, 0xFFFFFFFF, false);
-        graphics.text(this.font, "Object properties", rightPanelLeft + 12, 197, 0xFFB5C0CD, false);
-        graphics.text(this.font, "Transform controls arrive in Milestone 3.", rightPanelLeft + 12, 217, 0xFF8995A4, false);
+        graphics.text(this.font, "  Collection", rightPanelLeft + 14, 101, 0xFFB5C0CD, false);
+        graphics.text(this.font, "    Camera", rightPanelLeft + 14, 120, 0xFFB5C0CD, false);
+        graphics.text(this.font, "PROPERTIES", rightPanelLeft + 12, 153, 0xFF55DDEE, true);
+        graphics.horizontalLine(rightPanelLeft + 10, this.width - 24, 170, 0xFF465363);
+        graphics.text(this.font, "Active tool: " + activeTool, rightPanelLeft + 12, 184, 0xFFFFFFFF, false);
+        graphics.text(this.font, "LOCATION", rightPanelLeft + 12, 210, 0xFFB5C0CD, false);
+        graphics.text(this.font, "X: —     Y: —     Z: —", rightPanelLeft + 12, 226, 0xFF8995A4, false);
+        graphics.text(this.font, "ROTATION   /   SCALE", rightPanelLeft + 12, 250, 0xFFB5C0CD, false);
 
         graphics.text(this.font, "3D VIEWPORT", viewportLeft + 12, top + 10, 0xFF8B9AAC, false);
         int centerX = (viewportLeft + viewportRight) / 2;
