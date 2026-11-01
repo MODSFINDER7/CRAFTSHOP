@@ -167,7 +167,7 @@ public final class StudioScreen extends Screen {
         graphics.text(this.font, "3D STUDIO", 104, 14, 0xFF55DDEE, true);
         graphics.text(this.font, "File    Edit    View    Add    Object    Render    Help",
                 18, 46, 0xFFB9C4D1, false);
-        graphics.text(this.font, trim(status, 34), Math.max(490, this.width - 250), 19, 0xFF9DDDAA, false);
+        graphics.text(this.font, trim(status, 28), Math.max(320, this.width - 190), 46, 0xFF9DDDAA, false);
 
         graphics.text(this.font, "TOOL SHELF", 18, 68, 0xFF9AA8B8, false);
         graphics.text(this.font, "TRANSFORM", 18, 238, 0xFF6F8194, false);
