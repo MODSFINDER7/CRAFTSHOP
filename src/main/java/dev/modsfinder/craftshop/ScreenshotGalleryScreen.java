@@ -78,10 +78,10 @@ public final class ScreenshotGalleryScreen extends Screen {
                 .bounds(previewX + 70, bottom, 72, 20).build());
 
         this.addRenderableWidget(Button.builder(Component.literal("2D Editor"), button ->
-                this.minecraft.gui.setScreen(new Canvas2DScreen(this)))
+                this.minecraft.setScreen(new Canvas2DScreen(this)))
                 .bounds(this.width - 290, 12, 88, 20).build());
         this.addRenderableWidget(Button.builder(Component.literal("3D Studio"), button ->
-                this.minecraft.gui.setScreen(new StudioScreen(this)))
+                this.minecraft.setScreen(new StudioScreen(this)))
                 .bounds(this.width - 190, 12, 88, 20).build());
 
         this.addRenderableWidget(Button.builder(Component.literal("Close"), button -> onClose())
@@ -112,7 +112,7 @@ public final class ScreenshotGalleryScreen extends Screen {
             selected = renamed;
             refresh();
         } else if (this.minecraft != null && this.minecraft.player != null) {
-            this.minecraft.player.displayClientMessage(
+            this.minecraft.gui.setOverlayMessage(
                     Component.literal("CraftShop: name is invalid or already exists."), true
             );
         }
@@ -230,7 +230,7 @@ public final class ScreenshotGalleryScreen extends Screen {
     @Override
     public void onClose() {
         GalleryTextureCache.clear();
-        Minecraft.getInstance().gui.setScreen(null);
+        Minecraft.getInstance().setScreen(null);
     }
 
     @Override
