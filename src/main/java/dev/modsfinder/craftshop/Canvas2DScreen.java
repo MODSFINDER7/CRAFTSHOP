@@ -6,6 +6,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
@@ -86,6 +87,8 @@ public final class Canvas2DScreen extends Screen {
                 .bounds(510, 12, 72, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Bright -"), b -> adjustBrightness(-12))
                 .bounds(586, 12, 72, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Import Shot"), b -> importLatestScreenshot())
+                .bounds(this.width - 178, 250, 158, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Export PNG"), b -> exportCanvas())
                 .bounds(662, 12, 82, 20).build());
         addRenderableWidget(Button.builder(Component.literal("3D Studio"), b -> returnToParent())
@@ -158,6 +161,27 @@ public final class Canvas2DScreen extends Screen {
         graphics.text(font, "Brush: " + brushSize + " px", 14, 282, 0xFFB5C0CD, false);
         graphics.text(font, "Tool: " + tool, 14, 298, 0xFFB5C0CD, false);
         graphics.text(font, "Brightness: " + document.brightness, width - 178, 226, 0xFFB5C0CD, false);
+
+        if (document.backgroundImage != null && !document.backgroundImage.isBlank()) {
+            try {
+                Path source = Path.of(document.backgroundImage);
+                if (Files.isRegularFile(source)) {
+                    GalleryTextureCache.TextureEntry texture = GalleryTextureCache.get(source);
+                    if (texture != null) {
+                        float scale = Math.min((float) (canvasRight() - canvasLeft()) / texture.width(),
+                                (float) (canvasBottom() - canvasTop()) / texture.height());
+                        int drawW = Math.max(1, Math.round(texture.width() * scale));
+                        int drawH = Math.max(1, Math.round(texture.height() * scale));
+                        int drawX = canvasLeft() + ((canvasRight() - canvasLeft()) - drawW) / 2;
+                        int drawY = canvasTop() + ((canvasBottom() - canvasTop()) - drawH) / 2;
+                        graphics.blit(RenderPipelines.GUI_TEXTURED, texture.id(), drawX, drawY, 0.0F, 0.0F,
+                                drawW, drawH, texture.width(), texture.height());
+                    }
+                }
+            } catch (RuntimeException exception) {
+                status = "Imported image unavailable";
+            }
+        }
 
         for (Layer layer : document.layers) {
             if (!layer.visible) continue;
@@ -321,6 +345,13 @@ public final class Canvas2DScreen extends Screen {
         return document.layers.get(activeLayer);
     }
 
+    private void importLatestScreenshot() {
+        Path[] screenshots = ScreenshotManager.getScreenshots();
+        if (screenshots.length == 0) { status = "No gallery screenshots found"; return; }
+        document.backgroundImage = screenshots[0].toAbsolutePath().toString();
+        status = "Imported " + screenshots[0].getFileName();
+    }
+
     private void addText() {
         String value = textField == null ? "" : textField.getValue().trim();
         if (value.isEmpty()) return;
@@ -477,6 +508,7 @@ public final class Canvas2DScreen extends Screen {
     private static final class CanvasDocument {
         String name = "Untitled Canvas";
         int brightness = 0;
+        String backgroundImage = "";
         float cropX;
         float cropY;
         float cropWidth;
