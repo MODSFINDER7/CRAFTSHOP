@@ -36,6 +36,17 @@ public final class StudioScreen extends Screen {
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractBackground(graphics, mouseX, mouseY, delta);
         graphics.fill(8, 8, this.width - 8, this.height - 8, 0xF014171E);
+
+        int top = 42;
+        int bottom = this.height - 58;
+        int leftPanelRight = 94;
+        int rightPanelLeft = this.width - 214;
+        int viewportLeft = 104;
+        int viewportRight = rightPanelLeft - 10;
+        graphics.fill(14, top, leftPanelRight, bottom, 0xFF202630);
+        graphics.fill(viewportLeft, top, viewportRight, bottom, 0xFF11151C);
+        graphics.fill(rightPanelLeft, top, this.width - 14, bottom, 0xFF202630);
+        graphics.fill(14, bottom + 8, this.width - 14, this.height - 16, 0xFF202630);
     }
 
     @Override
@@ -51,11 +62,6 @@ public final class StudioScreen extends Screen {
         int rightPanelLeft = this.width - 214;
         int viewportLeft = 104;
         int viewportRight = rightPanelLeft - 10;
-
-        graphics.fill(14, top, leftPanelRight, bottom, 0xFF202630);
-        graphics.fill(viewportLeft, top, viewportRight, bottom, 0xFF11151C);
-        graphics.fill(rightPanelLeft, top, this.width - 14, bottom, 0xFF202630);
-        graphics.fill(14, bottom + 8, this.width - 14, this.height - 16, 0xFF202630);
 
         graphics.text(this.font, "TOOLS", 25, 31, 0xFF9AA8B8, false);
         graphics.text(this.font, "OUTLINER", rightPanelLeft + 12, 52, 0xFF55DDEE, true);
