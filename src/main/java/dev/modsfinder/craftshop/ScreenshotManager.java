@@ -51,14 +51,14 @@ public final class ScreenshotManager {
             Files.createDirectories(sourceDirectory);
             Screenshot.grab(minecraft, false);
             if (minecraft.player != null) {
-                minecraft.player.displayClientMessage(
+                minecraft.gui.setOverlayMessage(
                         Component.literal("CraftShop: screenshot captured. Adding it to your gallery..."), true
                 );
             }
         } catch (Exception exception) {
             CraftShop.LOGGER.error("Screenshot capture failed", exception);
             if (minecraft.player != null) {
-                minecraft.player.displayClientMessage(Component.literal("CraftShop: screenshot capture failed."), false);
+                minecraft.gui.setOverlayMessage(Component.literal("CraftShop: screenshot capture failed."), false);
             }
         }
     }
