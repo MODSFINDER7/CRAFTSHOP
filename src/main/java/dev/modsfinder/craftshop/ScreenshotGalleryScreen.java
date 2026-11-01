@@ -134,6 +134,17 @@ public final class ScreenshotGalleryScreen extends Screen {
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractBackground(graphics, mouseX, mouseY, delta);
         graphics.fill(12, 10, this.width - 12, this.height - 10, 0xE9161922);
+
+        int listTop = 76;
+        int rowHeight = 48;
+        int previewX = Math.max(360, this.width / 2 + 35);
+        int previewWidth = this.width - previewX - 28;
+        for (int slot = 0; slot < PAGE_SIZE; slot++) {
+            int y = listTop + slot * rowHeight;
+            graphics.fill(18, y, previewX - 12, y + 42, 0xFF252B36);
+        }
+        graphics.fill(previewX - 8, 76, this.width - 22, this.height - 82, 0xFF202630);
+        graphics.outline(previewX - 8, 76, previewWidth + 8, this.height - 158, 0xFF465363);
     }
 
     @Override
@@ -152,7 +163,6 @@ public final class ScreenshotGalleryScreen extends Screen {
         for (int slot = 0; slot < PAGE_SIZE; slot++) {
             int index = page * PAGE_SIZE + slot;
             int y = listTop + slot * rowHeight;
-            graphics.fill(18, y, previewX - 12, y + 42, 0xFF252B36);
             if (index >= screenshots.length) {
                 graphics.text(this.font, "Empty slot", 78, y + 15, 0xFF707987, false);
                 continue;
@@ -174,9 +184,6 @@ public final class ScreenshotGalleryScreen extends Screen {
         }
 
         graphics.text(this.font, "PREVIEW", previewX, 60, 0xFFFFFFFF, true);
-        graphics.fill(previewX - 8, 76, this.width - 22, this.height - 82, 0xFF202630);
-        graphics.outline(previewX - 8, 76, previewWidth + 8, this.height - 158, 0xFF465363);
-
         if (selected != null && selected.toFile().isFile()) {
             GalleryTextureCache.TextureEntry texture = GalleryTextureCache.get(selected);
             graphics.text(this.font, selected.getFileName().toString(), previewX, 84, 0xFF55DDEE, false);
