@@ -33,7 +33,7 @@ public final class SceneAssetRenderer {
             Block block = BuiltInRegistries.BLOCK.getValue(id);
             if (block == null) return;
             if (!(preview instanceof Display.BlockDisplay)) {
-                preview = EntityType.BLOCK_DISPLAY.create(minecraft.level, EntitySpawnReason.LOAD);
+                preview = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace("block_display")).create(minecraft.level, EntitySpawnReason.LOAD);
                 if (!(preview instanceof Display.BlockDisplay display)) return;
                 display.setBlockState(block.defaultBlockState());
                 PREVIEWS.put(object.id, display);
@@ -42,7 +42,7 @@ public final class SceneAssetRenderer {
             }
         } else if ("minecraft_entity".equals(object.kind)) {
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(id);
-            if (type == null || type == EntityType.PLAYER) return;
+            if (type == null || id.getPath().equals("player")) return;
             if (preview == null || preview.getType() != type) {
                 preview = type.create(minecraft.level, EntitySpawnReason.LOAD);
                 if (preview == null) return;
