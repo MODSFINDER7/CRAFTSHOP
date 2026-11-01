@@ -74,6 +74,12 @@ public final class StudioScreen extends Screen {
         addRenderableWidget(toolButton("Orbit", left, top + 100));
         addRenderableWidget(toolButton("Pan", left, top + 125));
         addRenderableWidget(toolButton("Zoom", left, top + 150));
+        addRenderableWidget(Button.builder(Component.literal("Add Block"), button -> openAssetPicker(false))
+                .bounds(left, top + 178, 66, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Add Entity"), button -> openAssetPicker(true))
+                .bounds(left, top + 202, 66, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Export PNG"), button -> exportViewport())
+                .bounds(left, top + 226, 66, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("New"), button -> newProject())
                 .bounds(174, 12, 48, 20).build());
@@ -203,6 +209,7 @@ public final class StudioScreen extends Screen {
             boolean selected = object.id.equals(selectedObjectId);
             int markerColor = selected ? 0xFFFFD166 : 0xFF55DDEE;
             drawWireCube(graphics, object, selected ? 0xFFFFD166 : 0xFF7B91A8);
+            SceneAssetRenderer.extract(graphics, object, this.minecraft, x, y, 18);
             graphics.fill(x - 3, y - 3, x + 4, y + 4, markerColor);
             if (selected) graphics.outline(x - 7, y - 7, 14, 14, 0xFFFFFFFF);
             graphics.text(this.font, object.name, x + 13, y - 4, selected ? 0xFFFFD166 : 0xFFD0D9E2, false);
@@ -393,6 +400,28 @@ public final class StudioScreen extends Screen {
         if (selectedObject() == null) selectedObjectId = null;
     }
 
+    private void openAssetPicker(boolean entities) {
+        this.minecraft.gui.setScreen(new SceneAssetPickerScreen(this, entities, asset -> {
+            checkpoint();
+            SceneProject.SceneObject object = new SceneProject.SceneObject();
+            object.kind = asset.entity() ? "minecraft_entity" : "minecraft_block";
+            object.assetId = asset.id();
+            object.name = asset.id();
+            object.transform.x = project.objects.size() * 1.25F;
+            project.objects.add(object);
+            selectedObjectId = object.id;
+            status = "Added " + asset.id();
+            rebuildWidgets();
+        }));
+    }
+
+    private void exportViewport() {
+        status = "Exporting viewport...";
+        SceneExporter.exportViewport(this.minecraft, viewportLeft() + 1, 87,
+                Math.max(1, viewportRight() - viewportLeft() - 2),
+                Math.max(1, timelineTop() - 96), message -> status = message);
+    }
+
     private void addCube() {
         checkpoint();
         SceneProject.SceneObject object = new SceneProject.SceneObject();
@@ -416,6 +445,7 @@ public final class StudioScreen extends Screen {
         copy.id = UUID.randomUUID().toString();
         copy.name = source.name + " Copy";
         copy.kind = source.kind;
+        copy.assetId = source.assetId;
         copy.visible = source.visible;
         copy.locked = source.locked;
         copy.transform.x = source.transform.x + 0.5F;
@@ -440,7 +470,11 @@ public final class StudioScreen extends Screen {
             return;
         }
         checkpoint();
-        project.objects.removeIf(object -> selected.id.equals(object.id));
+        project.objects.removeIf(object -> {
+            if (!selected.id.equals(object.id)) return false;
+            SceneAssetRenderer.forget(object.id);
+            return true;
+        });
         selectedObjectId = null;
         status = "Deleted " + selected.name;
         rebuildWidgets();
