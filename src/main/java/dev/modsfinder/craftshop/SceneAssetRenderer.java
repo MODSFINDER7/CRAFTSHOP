@@ -28,6 +28,7 @@ public final class SceneAssetRenderer {
         if (id == null) return;
 
         Entity preview = PREVIEWS.get(object.id);
+        boolean created = false;
         if ("minecraft_block".equals(object.kind)) {
             Block block = BuiltInRegistries.BLOCK.getValue(id);
             if (block == null) return;
@@ -37,8 +38,7 @@ public final class SceneAssetRenderer {
                 display.setBlockState(block.defaultBlockState());
                 PREVIEWS.put(object.id, display);
                 preview = display;
-            } else {
-                ((Display.BlockDisplay) preview).setBlockState(block.defaultBlockState());
+                created = true;
             }
         } else if ("minecraft_entity".equals(object.kind)) {
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(id);
@@ -47,13 +47,14 @@ public final class SceneAssetRenderer {
                 preview = type.create(minecraft.level, EntitySpawnReason.LOAD);
                 if (preview == null) return;
                 PREVIEWS.put(object.id, preview);
+                created = true;
             }
         } else {
             return;
         }
 
         preview.setNoGravity(true);
-        preview.tick();
+        if (created) preview.tick();
         preview.setPos(0.0, 0.0, 0.0);
         preview.setYRot(object.transform.rotationY);
         preview.setXRot(object.transform.rotationX);
