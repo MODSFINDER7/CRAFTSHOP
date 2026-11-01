@@ -13,6 +13,8 @@ import org.lwjgl.glfw.GLFW;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -90,6 +92,16 @@ public final class Canvas2DScreen extends Screen {
                 .bounds(586, 12, 72, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Import Image"), b -> openImagePicker())
                 .bounds(this.width - 178, 250, 158, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Grayscale"), b -> applyImageFilter("grayscale"))
+                .bounds(this.width - 178, 276, 76, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Invert"), b -> applyImageFilter("invert"))
+                .bounds(this.width - 98, 276, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Sepia"), b -> applyImageFilter("sepia"))
+                .bounds(this.width - 178, 300, 76, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Reset Image"), b -> {
+            document.backgroundImage = "";
+            status = "Background image cleared";
+        }).bounds(this.width - 98, 300, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Export PNG"), b -> exportCanvas())
                 .bounds(662, 12, 82, 20).build());
         addRenderableWidget(Button.builder(Component.literal("3D Studio"), b -> returnToParent())
@@ -373,6 +385,53 @@ public final class Canvas2DScreen extends Screen {
             document.backgroundImage = path.toAbsolutePath().toString();
             status = "Imported " + path.getFileName();
         }));
+    }
+
+    private void applyImageFilter(String filter) {
+        if (document.backgroundImage == null || document.backgroundImage.isBlank()) {
+            status = "Import an image first";
+            return;
+        }
+        Path sourcePath = Path.of(document.backgroundImage);
+        try {
+            BufferedImage source = ImageIO.read(sourcePath.toFile());
+            if (source == null) { status = "Image could not be decoded"; return; }
+            BufferedImage output = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            for (int y = 0; y < source.getHeight(); y++) {
+                for (int x = 0; x < source.getWidth(); x++) {
+                    int argb = source.getRGB(x, y);
+                    int a = (argb >>> 24) & 255;
+                    int red = (argb >>> 16) & 255;
+                    int green = (argb >>> 8) & 255;
+                    int blue = argb & 255;
+                    int nr = red, ng = green, nb = blue;
+                    switch (filter) {
+                        case "grayscale" -> {
+                            int gray = (int) (0.2126 * red + 0.7152 * green + 0.0722 * blue);
+                            nr = ng = nb = gray;
+                        }
+                        case "invert" -> { nr = 255 - red; ng = 255 - green; nb = 255 - blue; }
+                        case "sepia" -> {
+                            nr = Math.min(255, (int) (0.393 * red + 0.769 * green + 0.189 * blue));
+                            ng = Math.min(255, (int) (0.349 * red + 0.686 * green + 0.168 * blue));
+                            nb = Math.min(255, (int) (0.272 * red + 0.534 * green + 0.131 * blue));
+                        }
+                        default -> { }
+                    }
+                    output.setRGB(x, y, (a << 24) | (nr << 16) | (ng << 8) | nb);
+                }
+            }
+            Files.createDirectories(directory());
+            Path filtered = directory().resolve("filtered-" + filter + "-" + System.currentTimeMillis() + ".png");
+            ImageIO.write(output, "png", filtered.toFile());
+            source.flush();
+            output.flush();
+            document.backgroundImage = filtered.toAbsolutePath().toString();
+            status = filter + " filter applied";
+        } catch (IOException | RuntimeException exception) {
+            CraftShop.LOGGER.error("Could not apply image filter {}", filter, exception);
+            status = "Image filter failed";
+        }
     }
 
     private void addText() {
