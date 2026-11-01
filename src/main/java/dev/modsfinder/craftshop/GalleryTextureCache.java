@@ -3,7 +3,7 @@ package dev.modsfinder.craftshop;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -11,25 +11,27 @@ import java.util.HashMap;
 import java.util.Map;
 
 public final class GalleryTextureCache {
-    private static final Map<Path, ResourceLocation> TEXTURES = new HashMap<>();
+    private static final Map<Path, TextureEntry> TEXTURES = new HashMap<>();
 
     private GalleryTextureCache() {}
 
-    public static ResourceLocation get(Path imagePath) {
+    public static TextureEntry get(Path imagePath) {
         Path normalized = imagePath.toAbsolutePath().normalize();
-        ResourceLocation existing = TEXTURES.get(normalized);
+        TextureEntry existing = TEXTURES.get(normalized);
         if (existing != null) return existing;
 
-        Minecraft client = Minecraft.getInstance();
         try {
             NativeImage image = NativeImage.read(normalized.toFile());
-            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(
+            int width = image.getWidth();
+            int height = image.getHeight();
+            Identifier id = Identifier.fromNamespaceAndPath(
                     "craftshop", "gallery/" + Integer.toUnsignedString(normalized.toString().hashCode(), 36)
             );
             DynamicTexture texture = new DynamicTexture(() -> "CraftShop gallery " + normalized.getFileName(), image);
-            client.getTextureManager().register(id, texture);
-            TEXTURES.put(normalized, id);
-            return id;
+            Minecraft.getInstance().getTextureManager().register(id, texture);
+            TextureEntry entry = new TextureEntry(id, width, height);
+            TEXTURES.put(normalized, entry);
+            return entry;
         } catch (IOException exception) {
             CraftShop.LOGGER.error("Could not load gallery image {}", normalized, exception);
             return null;
@@ -38,16 +40,16 @@ public final class GalleryTextureCache {
 
     public static void invalidate(Path imagePath) {
         Path normalized = imagePath.toAbsolutePath().normalize();
-        ResourceLocation id = TEXTURES.remove(normalized);
-        if (id != null) {
-            Minecraft.getInstance().getTextureManager().release(id);
-        }
+        TextureEntry entry = TEXTURES.remove(normalized);
+        if (entry != null) Minecraft.getInstance().getTextureManager().release(entry.id());
     }
 
     public static void clear() {
-        for (ResourceLocation id : TEXTURES.values()) {
-            Minecraft.getInstance().getTextureManager().release(id);
+        for (TextureEntry entry : TEXTURES.values()) {
+            Minecraft.getInstance().getTextureManager().release(entry.id());
         }
         TEXTURES.clear();
     }
+
+    public record TextureEntry(Identifier id, int width, int height) {}
 }
