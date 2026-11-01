@@ -721,17 +721,15 @@ public final class Canvas2DScreen extends Screen {
             float sy = outputHeight / displayHeight;
             for (Layer layer : document.layers) {
                 if (!layer.visible) continue;
-                Graphics2D layerGraphics = (Graphics2D) graphics.create();
-                layerGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                        Math.max(0.0F, Math.min(1.0F, layer.opacity))));
+                BufferedImage layerImage = new BufferedImage(outputWidth, outputHeight, BufferedImage.TYPE_INT_ARGB);
+                Graphics2D layerGraphics = layerImage.createGraphics();
                 layerGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 for (Stroke stroke : layer.strokes) {
                     if (stroke.points == null || stroke.points.isEmpty()) continue;
                     if (stroke.eraser) {
                         layerGraphics.setComposite(AlphaComposite.Clear);
                     } else {
-                        layerGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                                Math.max(0.0F, Math.min(1.0F, layer.opacity))));
+                        layerGraphics.setComposite(AlphaComposite.SrcOver);
                         layerGraphics.setColor(new Color(adjustColor(stroke.color, document.brightness), true));
                     }
                     layerGraphics.setStroke(new BasicStroke(Math.max(1.0F, stroke.size * (sx + sy) * 0.5F),
@@ -752,17 +750,20 @@ public final class Canvas2DScreen extends Screen {
                         layerGraphics.draw(path);
                     }
                 }
-                layerGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                        Math.max(0.0F, Math.min(1.0F, layer.opacity))));
-                layerGraphics.setColor(new Color(0xFFFFFFFF, true));
+                layerGraphics.setComposite(AlphaComposite.SrcOver);
+                layerGraphics.setColor(Color.WHITE);
                 layerGraphics.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, Math.max(12, Math.round(16 * sx))));
                 for (TextItem item : layer.texts) {
                     layerGraphics.setColor(new Color(adjustColor(item.color, document.brightness), true));
                     layerGraphics.drawString(item.text, (item.x - displayX) * sx, (item.y - displayY) * sy);
                 }
                 layerGraphics.dispose();
+                graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                        Math.max(0.0F, Math.min(1.0F, layer.opacity))));
+                graphics.drawImage(layerImage, 0, 0, null);
+                graphics.setComposite(AlphaComposite.SrcOver);
+                layerImage.flush();
             }
-
             int cropX = 0, cropY = 0, cropW = outputWidth, cropH = outputHeight;
             if (document.cropWidth > 0 && document.cropHeight > 0) {
                 cropX = Math.max(0, Math.round((document.cropX - displayX) * sx));
