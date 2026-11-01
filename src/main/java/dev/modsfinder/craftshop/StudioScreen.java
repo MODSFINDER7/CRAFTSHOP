@@ -2,12 +2,16 @@ package dev.modsfinder.craftshop;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 public final class StudioScreen extends Screen {
     private final Screen parent;
+    private SceneProject project = new SceneProject();
     private String activeTool = "Select";
+    private String status = "";
+    private EditBox projectNameField;
 
     public StudioScreen(Screen parent) {
         super(Component.literal("CraftShop 3D Studio"));
@@ -33,6 +37,18 @@ public final class StudioScreen extends Screen {
                 .bounds(left, top + 125, 68, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Zoom"), button -> activeTool = "Zoom")
                 .bounds(left, top + 150, 68, 20).build());
+
+        addRenderableWidget(Button.builder(Component.literal("New"), button -> newProject())
+                .bounds(174, 12, 48, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Open"), button -> openProjectBrowser())
+                .bounds(226, 12, 52, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Save"), button -> saveProject())
+                .bounds(282, 12, 52, 20).build());
+
+        projectNameField = new EditBox(this.font, 340, 12, 150, 20, Component.literal("Project name"));
+        projectNameField.setMaxLength(64);
+        projectNameField.setValue(project.name);
+        addRenderableWidget(projectNameField);
 
         addRenderableWidget(Button.builder(Component.literal("Back to Gallery"), button -> returnToParent())
                 .bounds(this.width - 126, 12, 110, 20).build());
@@ -61,6 +77,7 @@ public final class StudioScreen extends Screen {
 
         graphics.text(this.font, "CRAFTSHOP", 18, 14, 0xFFFFFFFF, true);
         graphics.text(this.font, "3D STUDIO", 110, 14, 0xFF55DDEE, false);
+        if (!status.isEmpty()) graphics.text(this.font, status, 500, 18, 0xFF9DDDAA, false);
 
         int top = 42;
         int bottom = this.height - 58;
@@ -78,9 +95,13 @@ public final class StudioScreen extends Screen {
         graphics.text(this.font, "PROPERTIES", rightPanelLeft + 12, 153, 0xFF55DDEE, true);
         graphics.horizontalLine(rightPanelLeft + 10, this.width - 24, 170, 0xFF465363);
         graphics.text(this.font, "Active tool: " + activeTool, rightPanelLeft + 12, 184, 0xFFFFFFFF, false);
-        graphics.text(this.font, "LOCATION", rightPanelLeft + 12, 210, 0xFFB5C0CD, false);
-        graphics.text(this.font, "X: —     Y: —     Z: —", rightPanelLeft + 12, 226, 0xFF8995A4, false);
-        graphics.text(this.font, "ROTATION   /   SCALE", rightPanelLeft + 12, 250, 0xFFB5C0CD, false);
+        graphics.text(this.font, "Objects: " + project.objects.size(), rightPanelLeft + 12, 201, 0xFF8995A4, false);
+        graphics.text(this.font, "LOCATION", rightPanelLeft + 12, 224, 0xFFB5C0CD, false);
+        graphics.text(this.font, "X: " + project.camera.x + "  Y: " + project.camera.y,
+                rightPanelLeft + 12, 240, 0xFF8995A4, false);
+        graphics.text(this.font, "Z: " + project.camera.z + "  Zoom: " + project.camera.zoom,
+                rightPanelLeft + 12, 256, 0xFF8995A4, false);
+        graphics.text(this.font, "ROTATION   /   SCALE", rightPanelLeft + 12, 278, 0xFFB5C0CD, false);
 
         graphics.text(this.font, "3D VIEWPORT", viewportLeft + 12, top + 10, 0xFF8B9AAC, false);
         int centerX = (viewportLeft + viewportRight) / 2;
@@ -102,6 +123,32 @@ public final class StudioScreen extends Screen {
                 24, bottom + 39, 0xFF9AA8B8, false);
         graphics.text(this.font, "Interface prototype • no world blocks or entities are modified.",
                 18, this.height - 28, 0xFF8995A4, false);
+    }
+
+    private void newProject() {
+        project = new SceneProject();
+        activeTool = "Select";
+        status = "New scene created";
+        if (projectNameField != null) projectNameField.setValue(project.name);
+    }
+
+    private void saveProject() {
+        if (projectNameField != null) project.name = projectNameField.getValue();
+        try {
+            ProjectManager.save(project);
+            status = "Project saved";
+        } catch (java.io.IOException exception) {
+            CraftShop.LOGGER.error("Could not save CraftShop project", exception);
+            status = "Save failed";
+        }
+    }
+
+    private void openProjectBrowser() {
+        this.minecraft.gui.setScreen(new ProjectBrowserScreen(this, loaded -> {
+            project = loaded;
+            if (projectNameField != null) projectNameField.setValue(project.name);
+            status = "Project loaded";
+        }));
     }
 
     private void returnToParent() {
