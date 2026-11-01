@@ -22,6 +22,7 @@ public final class SceneAssetPickerScreen extends Screen {
     private final Consumer<SceneAsset> onPick;
     private EditBox search;
     private int page;
+    private String filter = "";
 
     public record SceneAsset(String id, String displayName, boolean entity) {}
 
@@ -36,6 +37,7 @@ public final class SceneAssetPickerScreen extends Screen {
     protected void init() {
         search = new EditBox(font, 18, 38, Math.min(260, width - 36), 20, Component.literal("Search"));
         search.setMaxLength(80);
+        search.setValue(filter);
         search.setHint(Component.literal("Search " + (entities ? "entities" : "blocks") + "..."));
         addRenderableWidget(search);
         addRenderableWidget(Button.builder(Component.literal("Previous"), b -> {
@@ -126,6 +128,7 @@ public final class SceneAssetPickerScreen extends Screen {
         if (search != null && search.isFocused()) {
             boolean handled = search.keyPressed(keyCode, scanCode, modifiers);
             if (handled) {
+                filter = search.getValue();
                 page = 0;
                 rebuild();
                 search.setFocused(true);
@@ -138,10 +141,9 @@ public final class SceneAssetPickerScreen extends Screen {
     @Override
     public boolean charTyped(char codePoint, int modifiers) {
         if (search != null && search.isFocused() && search.charTyped(codePoint, modifiers)) {
+            filter = search.getValue();
             page = 0;
-            String value = search.getValue();
             rebuild();
-            search.setValue(value);
             search.setFocused(true);
             return true;
         }
