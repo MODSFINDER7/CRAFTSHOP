@@ -16,6 +16,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.awt.image.BufferedImage;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.geom.Path2D;
 import javax.imageio.ImageIO;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -675,14 +682,114 @@ public final class Canvas2DScreen extends Screen {
     }
 
     private void exportCanvas() {
-        status = "Exporting canvas...";
-        int x = document.cropWidth > 0 ? Math.round(document.cropX) : canvasLeft();
-        int y = document.cropHeight > 0 ? Math.round(document.cropY) : canvasTop();
-        int w = document.cropWidth > 0 ? Math.round(document.cropWidth) : canvasRight() - canvasLeft();
-        int h = document.cropHeight > 0 ? Math.round(document.cropHeight) : canvasBottom() - canvasTop();
-        SceneExporter.exportViewport(this.minecraft, x, y, w, h, message -> status = message);
-    }
+        status = "Exporting full-resolution PNG...";
+        BufferedImage source = null;
+        BufferedImage output = null;
+        Graphics2D graphics = null;
+        try {
+            int outputWidth = 1280;
+            int outputHeight = 720;
+            Path sourcePath = resolveBackgroundPath();
+            if (sourcePath != null && Files.isRegularFile(sourcePath)) {
+                source = ImageIO.read(sourcePath.toFile());
+                if (source == null) throw new IOException("The selected PNG could not be decoded");
+                outputWidth = source.getWidth();
+                outputHeight = source.getHeight();
+            }
 
+            output = new BufferedImage(outputWidth, outputHeight, BufferedImage.TYPE_INT_ARGB);
+            graphics = output.createGraphics();
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            graphics.setColor(Color.WHITE);
+            graphics.fillRect(0, 0, outputWidth, outputHeight);
+
+            float displayX = canvasLeft();
+            float displayY = canvasTop();
+            float displayWidth = canvasRight() - canvasLeft();
+            float displayHeight = canvasBottom() - canvasTop();
+            if (source != null) {
+                float fit = Math.min(displayWidth / source.getWidth(), displayHeight / source.getHeight());
+                displayWidth = source.getWidth() * fit;
+                displayHeight = source.getHeight() * fit;
+                displayX += ((canvasRight() - canvasLeft()) - displayWidth) / 2.0F;
+                displayY += ((canvasBottom() - canvasTop()) - displayHeight) / 2.0F;
+                graphics.drawImage(source, 0, 0, outputWidth, outputHeight, null);
+            }
+
+            float sx = outputWidth / displayWidth;
+            float sy = outputHeight / displayHeight;
+            for (Layer layer : document.layers) {
+                if (!layer.visible) continue;
+                Graphics2D layerGraphics = (Graphics2D) graphics.create();
+                layerGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                        Math.max(0.0F, Math.min(1.0F, layer.opacity))));
+                layerGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                for (Stroke stroke : layer.strokes) {
+                    if (stroke.points == null || stroke.points.isEmpty()) continue;
+                    if (stroke.eraser) {
+                        layerGraphics.setComposite(AlphaComposite.Clear);
+                    } else {
+                        layerGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                                Math.max(0.0F, Math.min(1.0F, layer.opacity))));
+                        layerGraphics.setColor(new Color(adjustColor(stroke.color, document.brightness), true));
+                    }
+                    layerGraphics.setStroke(new BasicStroke(Math.max(1.0F, stroke.size * (sx + sy) * 0.5F),
+                            BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    Path2D.Float path = new Path2D.Float();
+                    Point first = stroke.points.get(0);
+                    path.moveTo((first.x - displayX) * sx, (first.y - displayY) * sy);
+                    for (int i = 1; i < stroke.points.size(); i++) {
+                        Point point = stroke.points.get(i);
+                        path.lineTo((point.x - displayX) * sx, (point.y - displayY) * sy);
+                    }
+                    if (stroke.points.size() == 1) {
+                        Point point = stroke.points.get(0);
+                        float px = (point.x - displayX) * sx;
+                        float py = (point.y - displayY) * sy;
+                        layerGraphics.draw(new java.awt.geom.Line2D.Float(px, py, px + 0.01F, py + 0.01F));
+                    } else {
+                        layerGraphics.draw(path);
+                    }
+                }
+                layerGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                        Math.max(0.0F, Math.min(1.0F, layer.opacity))));
+                layerGraphics.setColor(new Color(0xFFFFFFFF, true));
+                layerGraphics.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, Math.max(12, Math.round(16 * sx))));
+                for (TextItem item : layer.texts) {
+                    layerGraphics.setColor(new Color(adjustColor(item.color, document.brightness), true));
+                    layerGraphics.drawString(item.text, (item.x - displayX) * sx, (item.y - displayY) * sy);
+                }
+                layerGraphics.dispose();
+            }
+
+            int cropX = 0, cropY = 0, cropW = outputWidth, cropH = outputHeight;
+            if (document.cropWidth > 0 && document.cropHeight > 0) {
+                cropX = Math.max(0, Math.round((document.cropX - displayX) * sx));
+                cropY = Math.max(0, Math.round((document.cropY - displayY) * sy));
+                cropW = Math.min(outputWidth - cropX, Math.round(document.cropWidth * sx));
+                cropH = Math.min(outputHeight - cropY, Math.round(document.cropHeight * sy));
+            }
+            if (cropW <= 0 || cropH <= 0) throw new IOException("Crop area is outside the image");
+            BufferedImage cropped = output.getSubimage(cropX, cropY, cropW, cropH);
+            Path directory = directory().resolve("exports");
+            Files.createDirectories(directory);
+            String safeName = document.name == null ? "CraftShop" : document.name.replaceAll("[^A-Za-z0-9._-]", "_");
+            if (safeName.isBlank()) safeName = "CraftShop";
+            Path destination = directory.resolve(safeName + "-" + System.currentTimeMillis() + ".png");
+            if (!ImageIO.write(cropped, "png", destination.toFile())) {
+                throw new IOException("PNG encoder is unavailable");
+            }
+            status = "PNG exported: " + destination.getFileName();
+        } catch (Exception exception) {
+            CraftShop.LOGGER.error("Could not export CraftShop PNG", exception);
+            status = "PNG export failed: " + exception.getMessage();
+        } finally {
+            if (graphics != null) graphics.dispose();
+            if (source != null) source.flush();
+            if (output != null) output.flush();
+        }
+    }
     private void returnToParent() {
         this.minecraft.gui.setScreen(parent);
     }
