@@ -35,9 +35,9 @@ public final class SceneExporter {
                         Math.max(1, Math.round(guiHeight * image.getHeight() / (float) guiScreenHeight)));
                 if (width <= 0 || height <= 0) throw new IOException("Viewport is outside the screenshot");
                 output = new NativeImage(width, height, false);
-                output.copyRect(image, x, y, 0, 0, width, height, false, false);
+                for (int py = 0; py < height; py++) {\n                    for (int px = 0; px < width; px++) {\n                        output.setPixel(px, py, image.getPixel(x + px, y + py));\n                    }\n                }
 
-                Path directory = minecraft.gameDirectory.toPath().resolve("Pictures").resolve("CraftShop");
+                Path directory = Path.of(System.getProperty("user.home"), "Pictures", "CraftShop");
                 Files.createDirectories(directory);
                 Path destination = directory.resolve("CraftShop-" + FILE_TIME.format(LocalDateTime.now()) + ".png");
                 output.writeToFile(destination);
