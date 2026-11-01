@@ -47,7 +47,7 @@ The gallery opens a dedicated Studio workspace containing:
 - Timeline and frame ruler
 - Status bar and project information
 
-The workspace includes a separate **2D Image Editor** alongside the 3D Studio. The editor provides a white canvas, brush and eraser strokes, text placement, a colour palette, adjustable brush size, paginated layer selection, visibility, opacity and reorder controls, crop bounds, ink brightness adjustment, snapshot-based undo/redo, screenshot import from a selectable gallery image picker, grayscale/invert/sepia image filters, project-relative imported image assets, JSON-based `.craftshop2d` save/open, and PNG export. It is a lightweight drawing workspace rather than a full Photoshop replacement: imported images are used as a canvas background and are not yet directly retouched with pixel-level filters, masks, selection transforms, or advanced typography.
+The workspace includes a separate **2D Image Editor** alongside the 3D Studio. The editor provides a white canvas, brush and eraser strokes, text placement, a colour palette, adjustable brush size, paginated layer selection, visibility, opacity and reorder controls, crop bounds, ink brightness adjustment, snapshot-based undo/redo, screenshot import from a selectable gallery image picker, grayscale/invert/sepia image filters, project-relative imported image assets, named JSON-based `.craftshop2d` projects with a project browser, and PNG export. It is a lightweight drawing workspace rather than a full Photoshop replacement: imported images are used as a canvas background and are not yet directly retouched with pixel-level filters, masks, selection transforms, or advanced typography.
 
 ## Milestone 3: Core 3D editor functionality
 
