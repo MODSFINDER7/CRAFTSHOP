@@ -62,7 +62,13 @@ The current editor foundation includes:
 - Keyboard tool shortcuts (G = Move, R = Rotate, S = Scale)
 - Project save/load using editable `.craftshop` project files
 
-The current primitive renderer is a lightweight wireframe editor representation. Minecraft block models, entity models, player skins and animation tracks belong to Milestone 4. No real Minecraft world blocks or entities are modified by the Studio.
+The editor now includes a searchable vanilla asset picker for registered blocks and entities. Blocks are previewed through isolated Block Display entities and living entities through the current entity render-state pipeline. Each scene object stores its Minecraft registry ID, so projects remain editable and portable across sessions. The preview entities are never added to the live world entity list, and the editor does not place or modify world blocks. Player mannequin assets are available when registered by the target game version.
+
+## Milestone 5: PNG viewport export
+
+The Studio has an **Export PNG** action. It captures the current Studio viewport, crops away the surrounding editor panels, and saves the PNG to the operating system Pictures folder under `Pictures/CraftShop`. The editable `.craftshop` project remains separate from the exported image.
+
+Export uses Minecraft's screenshot readback and NativeImage pipeline; it does not use raw OpenGL, keeping compatibility with the 26.2 rendering backend abstraction.
 
 ## Build and test policy
 
