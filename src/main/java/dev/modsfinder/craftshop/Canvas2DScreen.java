@@ -81,6 +81,14 @@ public final class Canvas2DScreen extends Screen {
                 .bounds(x, y + 232, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Reset Crop"), b -> resetCrop())
                 .bounds(x, y + 256, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Opacity +"), b -> adjustLayerOpacity(0.1F))
+                .bounds(x, y + 280, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Opacity -"), b -> adjustLayerOpacity(-0.1F))
+                .bounds(x, y + 304, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Layer Up"), b -> moveLayer(-1))
+                .bounds(x, y + 328, 78, 20).build());
+        addRenderableWidget(Button.builder(Component.literal("Layer Down"), b -> moveLayer(1))
+                .bounds(x, y + 352, 78, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("New"), b -> newDocument())
                 .bounds(172, 12, 48, 20).build());
@@ -203,6 +211,7 @@ public final class Canvas2DScreen extends Screen {
         graphics.text(font, "Brush: " + brushSize + " px", 14, 282, 0xFFB5C0CD, false);
         graphics.text(font, "Tool: " + tool, 14, 298, 0xFFB5C0CD, false);
         graphics.text(font, "Ink brightness: " + document.brightness, width - 178, 284, 0xFFB5C0CD, false);
+        graphics.text(font, "Layer opacity: " + Math.round(currentLayer().opacity * 100) + "%", 14, 382, 0xFFB5C0CD, false);
 
         if (document.backgroundImage != null && !document.backgroundImage.isBlank()) {
             try {
@@ -229,7 +238,7 @@ public final class Canvas2DScreen extends Screen {
             if (!layer.visible) continue;
             for (Stroke stroke : layer.strokes) {
                 if (stroke.points == null || stroke.points.isEmpty()) continue;
-                int color = stroke.eraser ? 0xFFFFFFFF : adjustColor(stroke.color, document.brightness);
+                int color = withOpacity(stroke.eraser ? 0xFFFFFFFF : adjustColor(stroke.color, document.brightness), layer.opacity);
                 Point previous = null;
                 for (Point point : stroke.points) {
                     if (!insideCrop(point.x, point.y)) { previous = point; continue; }
@@ -244,7 +253,7 @@ public final class Canvas2DScreen extends Screen {
             for (TextItem item : layer.texts) {
                 if (insideCrop(item.x, item.y)) {
                     graphics.text(font, item.text, Math.round(item.x), Math.round(item.y),
-                            adjustColor(item.color, document.brightness), false);
+                            withOpacity(adjustColor(item.color, document.brightness), layer.opacity), false);
                 }
             }
         }
@@ -493,6 +502,24 @@ public final class Canvas2DScreen extends Screen {
         status = "Layer deleted";
     }
 
+    private void adjustLayerOpacity(float amount) {
+        checkpoint();
+        Layer layer = currentLayer();
+        layer.opacity = Math.max(0.05F, Math.min(1.0F, layer.opacity + amount));
+        status = "Layer opacity: " + Math.round(layer.opacity * 100) + "%";
+    }
+
+    private void moveLayer(int direction) {
+        int target = activeLayer + direction;
+        if (target < 0 || target >= document.layers.size()) return;
+        checkpoint();
+        java.util.Collections.swap(document.layers, activeLayer, target);
+        activeLayer = target;
+        layerPage = activeLayer / 5;
+        refreshWidgets();
+        status = "Layer order changed";
+    }
+
     private void toggleLayer() {
         checkpoint();
         Layer layer = currentLayer();
@@ -627,6 +654,12 @@ public final class Canvas2DScreen extends Screen {
         return Math.max(min, Math.min(max, value));
     }
 
+    private static int withOpacity(int color, float opacity) {
+        int alpha = (color >>> 24) & 255;
+        int adjustedAlpha = Math.max(0, Math.min(255, Math.round(alpha * opacity)));
+        return (color & 0x00FFFFFF) | (adjustedAlpha << 24);
+    }
+
     private static int adjustColor(int color, int brightness) {
         int a = (color >>> 24) & 255;
         int r = clamp(((color >>> 16) & 255) + brightness, 0, 255);
@@ -677,6 +710,7 @@ public final class Canvas2DScreen extends Screen {
     private static final class Layer {
         String name;
         boolean visible = true;
+        float opacity = 1.0F;
         List<Stroke> strokes = new ArrayList<>();
         List<TextItem> texts = new ArrayList<>();
         Layer(String name) { this.name = name; }
