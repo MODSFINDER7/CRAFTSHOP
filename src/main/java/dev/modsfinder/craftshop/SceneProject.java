@@ -25,7 +25,8 @@ public final class SceneProject {
     public static final class SceneObject {
         public String id = UUID.randomUUID().toString();
         public String name = "Object";
-        public String kind = "empty";
+        public String kind = "mesh_cube";
+        public String assetId = "minecraft:stone";
         public Transform transform = new Transform();
         public boolean visible = true;
         public boolean locked = false;
