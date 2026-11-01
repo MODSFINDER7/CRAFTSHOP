@@ -155,7 +155,7 @@ public final class ScreenshotGalleryScreen extends Screen {
             }
 
             Path path = screenshots[index];
-            GalleryTextureCache.TextureEntry texture = GalleryTextureCache.get(path);
+            GalleryTextureCache.TextureEntry texture = GalleryTextureCache.getThumbnail(path);
             if (texture != null) {
                 int thumbW = 48;
                 int thumbH = 32;
