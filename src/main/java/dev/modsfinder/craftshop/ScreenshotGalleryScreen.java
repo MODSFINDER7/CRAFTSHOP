@@ -127,8 +127,13 @@ public final class ScreenshotGalleryScreen extends Screen {
     }
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+    public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        super.extractBackground(graphics, mouseX, mouseY, delta);
         graphics.fill(12, 10, this.width - 12, this.height - 10, 0xE9161922);
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         graphics.text(this.font, "CRAFTSHOP", 22, 18, 0xFFFFFFFF, true);
         graphics.text(this.font, "SCREENSHOT LIBRARY", 22, 36, 0xFF55DDEE, false);
@@ -210,6 +215,7 @@ public final class ScreenshotGalleryScreen extends Screen {
 
     @Override
     public void onClose() {
+        GalleryTextureCache.clear();
         Minecraft.getInstance().gui.setScreen(null);
     }
 
