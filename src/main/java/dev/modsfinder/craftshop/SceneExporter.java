@@ -40,6 +40,10 @@ public final class SceneExporter {
                 return;
             }
             SceneRenderScreen renderScreen = new SceneRenderScreen(project, image);
+            if (!renderScreen.isReady()) {
+                completion.accept("Selected PNG could not be prepared for rendering");
+                return;
+            }
             pending = new Pending(returnScreen, renderScreen, image, project.name, completion, 1);
             minecraft.gui.setScreen(renderScreen);
         } catch (IOException exception) {
