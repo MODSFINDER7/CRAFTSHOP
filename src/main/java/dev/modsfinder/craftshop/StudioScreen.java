@@ -97,14 +97,14 @@ public final class StudioScreen extends Screen {
         boolean hasSelection = selected != null;
         boolean unlocked = hasSelection && !selected.locked;
 
-        addButton("X -", mx, 128, pairW, 20, () -> nudge(0, -MOVE_STEP));
-        addButton("X +", mx + pairW + pairGap, 128, pairW, 20, () -> nudge(0, MOVE_STEP));
-        addButton("Y -", mx + (pairW + pairGap) * 2, 128, pairW, 20,
+        addButton("X -", mx, 146, pairW, 20, () -> nudge(0, -MOVE_STEP));
+        addButton("X +", mx + pairW + pairGap, 146, pairW, 20, () -> nudge(0, MOVE_STEP));
+        addButton("Y -", mx + (pairW + pairGap) * 2, 146, pairW, 20,
                 () -> nudge(1, -MOVE_STEP));
-        addButton("Y +", mx + (pairW + pairGap) * 3, 128, pairW, 20,
+        addButton("Y +", mx + (pairW + pairGap) * 3, 146, pairW, 20,
                 () -> nudge(1, MOVE_STEP));
-        addButton("Z -", mx, 152, pairW, 20, () -> nudge(2, -MOVE_STEP));
-        addButton("Z +", mx + pairW + pairGap, 152, pairW, 20, () -> nudge(2, MOVE_STEP));
+        addButton("Z -", mx, 170, pairW, 20, () -> nudge(2, -MOVE_STEP));
+        addButton("Z +", mx + pairW + pairGap, 170, pairW, 20, () -> nudge(2, MOVE_STEP));
 
         addButton("X -", mx, 202, pairW, 20, () -> rotate(0, -ROTATE_STEP));
         addButton("X +", mx + pairW + pairGap, 202, pairW, 20, () -> rotate(0, ROTATE_STEP));
