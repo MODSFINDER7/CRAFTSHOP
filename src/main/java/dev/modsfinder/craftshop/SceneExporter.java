@@ -40,7 +40,7 @@ public final class SceneExporter {
                 return;
             }
             SceneRenderScreen renderScreen = new SceneRenderScreen(project, image);
-            pending = new Pending(returnScreen, image, project.name, completion, 1);
+            pending = new Pending(returnScreen, renderScreen, image, project.name, completion, 1);
             minecraft.gui.setScreen(renderScreen);
         } catch (IOException exception) {
             CraftShop.LOGGER.error("Could not prepare CraftShop scene render", exception);
@@ -51,8 +51,7 @@ public final class SceneExporter {
     public static void tick(Minecraft minecraft) {
         Pending current = pending;
         if (current == null) return;
-        if (minecraft.gui.screen() != minecraft.gui.screen()
-                || !(minecraft.gui.screen() instanceof SceneRenderScreen)) {
+        if (minecraft.gui.screen() != current.renderScreen) {
             pending = null;
             minecraft.gui.setScreen(current.returnScreen);
             current.completion.accept("Render cancelled");
@@ -150,14 +149,16 @@ public final class SceneExporter {
 
     private static final class Pending {
         final Screen returnScreen;
+        final Screen renderScreen;
         final Path imagePath;
         final String projectName;
         final Consumer<String> completion;
         int ticksRemaining;
 
-        Pending(Screen returnScreen, Path imagePath, String projectName,
+        Pending(Screen returnScreen, Screen renderScreen, Path imagePath, String projectName,
                 Consumer<String> completion, int ticksRemaining) {
             this.returnScreen = returnScreen;
+            this.renderScreen = renderScreen;
             this.imagePath = imagePath;
             this.projectName = projectName;
             this.completion = completion;
