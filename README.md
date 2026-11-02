@@ -48,9 +48,13 @@ The 3D Studio is intentionally **not** a Blender-style viewport layout. There is
 
 The 3D scene is independent from the live Minecraft world. Preview entities are created only for rendering and are never added to the live level; the editor does not place or modify live world blocks.
 
-### Rendering limitation
+Each `.craftshop` project stores its editable base PNG, scene objects, spectator camera and last rendered-output reference. The Render button creates a temporary render-only composition screen: the original PNG remains the fixed background, while Minecraft block/entity preview models are projected using the saved camera and object transforms. The result is captured at the source PNG dimensions and written into `.minecraft/craftshop/screenshots`, where it appears in the gallery. The original base PNG is preserved so repeated renders do not stack duplicate objects.
 
-The current scene data and button-based editing controls are separate from the exported PNG. A complete off-screen Minecraft scene renderer that composites the 3D scene into the imported PNG is still a development task. The 3D scene project remains editable in its own `.craftshop` file.
+Opening a selected gallery screenshot in the 2D editor or 3D Studio uses that selected image. Standalone 2D exports are added to the gallery; 2D exports from the 3D Studio replace the project's base PNG and clear the stale render reference.
+
+### Rendering scope
+
+The current compositor renders individual Minecraft model previews and orders them by object depth. It is not a full Minecraft world renderer: per-pixel mesh occlusion, terrain physics, dynamic world lighting and cast shadows are not simulated. The 3D Studio editing interface itself remains button-based, with no central viewport, grid or timeline.
 
 ## Build and test policy
 
