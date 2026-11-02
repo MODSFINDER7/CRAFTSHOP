@@ -57,11 +57,11 @@ public final class SceneAssetRenderer {
         preview.setNoGravity(true);
         if (created) preview.tick();
         preview.setPos(0.0, 0.0, 0.0);
-        preview.setYRot(object.transform.rotationY);
-        preview.setXRot(object.transform.rotationX);
+        preview.setYRot(0.0F);
+        preview.setXRot(0.0F);
         var state = minecraft.getEntityRenderDispatcher().extractEntity(
                 preview, minecraft.getDeltaTracker().getGameTimeDeltaPartialTick(false));
-        float scale = Math.max(0.25F, Math.min(2.0F,
+        float scale = Math.max(0.05F, Math.min(4.0F,
                 (object.transform.scaleX + object.transform.scaleY + object.transform.scaleZ) / 3.0F));
         Quaternionf rotation = new Quaternionf().rotationXYZ(
                 (float) Math.toRadians(object.transform.rotationX),
