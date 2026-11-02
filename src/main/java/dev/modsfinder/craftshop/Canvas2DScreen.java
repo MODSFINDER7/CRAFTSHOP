@@ -922,7 +922,17 @@ public final class Canvas2DScreen extends Screen {
                 throw new IOException("PNG encoder is unavailable");
             }
             status = "PNG exported: " + destination.getFileName();
-            if (exportCallback != null) exportCallback.accept(destination);
+            if (exportCallback != null) {
+                exportCallback.accept(destination);
+            } else {
+                Path gallery = ScreenshotManager.getGalleryDirectory();
+                if (gallery != null) {
+                    Files.createDirectories(gallery);
+                    Path galleryFile = gallery.resolve(safeName + "-edited-" + System.currentTimeMillis() + ".png");
+                    Files.copy(destination, galleryFile);
+                    status = "PNG exported to gallery: " + galleryFile.getFileName();
+                }
+            }
         } catch (Exception exception) {
             CraftShop.LOGGER.error("Could not export CraftShop PNG", exception);
             status = "PNG export failed: " + exception.getMessage();
