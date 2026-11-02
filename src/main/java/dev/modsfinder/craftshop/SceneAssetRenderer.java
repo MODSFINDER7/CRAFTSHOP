@@ -32,8 +32,7 @@ public final class SceneAssetRenderer {
         if ("minecraft_block".equals(object.kind) || "mesh_cube".equals(object.kind)) {
             Block block = BuiltInRegistries.BLOCK.getValue(id);
             if (block == null) return;
-            if (!(preview instanceof Display.BlockDisplay display)
-                    || !object.assetId.equals(display.getBlockState().getBlock().builtInRegistryHolder().key().location().toString())) {
+            if (!(preview instanceof Display.BlockDisplay)) {
                 preview = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace("block_display"))
                         .create(minecraft.level, EntitySpawnReason.LOAD);
                 if (!(preview instanceof Display.BlockDisplay blockDisplay)) return;
