@@ -28,6 +28,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.function.Consumer;
 
 public final class Canvas2DScreen extends Screen {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -38,6 +39,7 @@ public final class Canvas2DScreen extends Screen {
     };
 
     private final Screen parent;
+    private final Consumer<Path> exportCallback;
     private CanvasDocument document = new CanvasDocument();
     private String tool = "Brush";
     private int activeColor = PALETTE[0];
@@ -64,8 +66,19 @@ public final class Canvas2DScreen extends Screen {
     private String status = "Ready";
 
     public Canvas2DScreen(Screen parent) {
+        this(parent, null, null);
+    }
+
+    public Canvas2DScreen(Screen parent, Path initialImage, Consumer<Path> exportCallback) {
         super(Component.literal("CraftShop 2D Editor"));
         this.parent = parent;
+        this.exportCallback = exportCallback;
+        if (initialImage != null && Files.isRegularFile(initialImage)) {
+            document.backgroundImage = initialImage.toAbsolutePath().normalize().toString();
+            String filename = initialImage.getFileName().toString();
+            int dot = filename.lastIndexOf('.');
+            document.name = dot > 0 ? filename.substring(0, dot) : filename;
+        }
     }
 
     private int canvasLeft() { return 112; }
@@ -909,6 +922,7 @@ public final class Canvas2DScreen extends Screen {
                 throw new IOException("PNG encoder is unavailable");
             }
             status = "PNG exported: " + destination.getFileName();
+            if (exportCallback != null) exportCallback.accept(destination);
         } catch (Exception exception) {
             CraftShop.LOGGER.error("Could not export CraftShop PNG", exception);
             status = "PNG export failed: " + exception.getMessage();
