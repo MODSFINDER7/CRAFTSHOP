@@ -211,7 +211,7 @@ public final class StudioScreen extends Screen {
         graphics.text(this.font, "CRAFTSHOP  /  3D SCENE TOOLS", 14, 48, 0xFF55DDEE, true);
         String pngLabel = "No PNG selected";
         if (project.canvasImage != null && !project.canvasImage.isBlank()) {
-            int separator = Math.max(project.canvasImage.lastIndexOf('/'), project.canvasImage.lastIndexOf('\\\\'));
+            int separator = Math.max(project.canvasImage.lastIndexOf('/'), project.canvasImage.lastIndexOf('\\'));
             pngLabel = separator >= 0 ? project.canvasImage.substring(separator + 1) : project.canvasImage;
         }
         graphics.text(this.font, "PNG: " + trim(pngLabel, 28), 14, 58, 0xFF9AA8B8, false);
