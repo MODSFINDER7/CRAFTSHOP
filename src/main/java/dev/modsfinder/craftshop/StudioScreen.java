@@ -9,6 +9,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.UUID;
@@ -59,16 +60,18 @@ public final class StudioScreen extends Screen {
         addButton("Open", 55, top, 46, 20, this::openProjectBrowser);
         addButton("Save", 104, top, 44, 20, this::saveProject);
 
-        int nameX = 151;
-        int nameWidth = Math.max(72, this.width - 355);
+        addButton("PNG", 151, top, 42, 20, this::choosePng);
+        addButton("Render", 197, top, 54, 20, this::renderPng);
+
+        int nameX = 256;
+        int nameWidth = Math.max(72, this.width - 398);
         projectNameField = new EditBox(this.font, nameX, top, nameWidth, 20,
                 Component.literal("Project name"));
         projectNameField.setMaxLength(64);
         projectNameField.setValue(project.name == null ? "Untitled Scene" : project.name);
         addRenderableWidget(projectNameField);
 
-        addButton("2D PNG", this.width - 132, top, 62, 20,
-                () -> this.minecraft.gui.setScreen(new Canvas2DScreen(this)));
+        addButton("2D PNG", this.width - 132, top, 62, 20, this::open2DEditor);
         addButton("Gallery", this.width - 64, top, 54, 20, this::returnToParent);
 
         int buttonX = leftX() + 10;
@@ -193,6 +196,9 @@ public final class StudioScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         graphics.text(this.font, "CRAFTSHOP  /  3D SCENE TOOLS", 14, 48, 0xFF55DDEE, true);
+        String pngLabel = project.canvasImage == null || project.canvasImage.isBlank()
+                ? "No PNG selected" : Path.of(project.canvasImage).getFileName().toString();
+        graphics.text(this.font, "PNG: " + trim(pngLabel, 28), 14, 58, 0xFF9AA8B8, false);
         graphics.text(this.font, trim(status, 54),
                 Math.max(180, this.width - this.font.width(trim(status, 54)) - 14), 48,
                 0xFF9DDDAA, false);
@@ -402,6 +408,7 @@ public final class StudioScreen extends Screen {
         }
         checkpoint();
         project.objects.removeIf(object -> selected.id.equals(object.id));
+        SceneAssetRenderer.forget(selected.id);
         selectedObjectId = null;
         validateProject();
         status = "Deleted " + selected.name;
@@ -438,7 +445,7 @@ public final class StudioScreen extends Screen {
         checkpoint();
         SceneProject.Camera camera = project.camera;
         double yaw = Math.toRadians(camera.yaw);
-        camera.x += (float) (Math.cos(yaw) * side + Math.sin(yaw) * forward) * MOVE_STEP;
+        camera.x += (float) (Math.cos(yaw) * side - Math.sin(yaw) * forward) * MOVE_STEP;
         camera.y += vertical * MOVE_STEP;
         camera.z += (float) (Math.sin(yaw) * side - Math.cos(yaw) * forward) * MOVE_STEP;
         status = "Spectator camera position updated";
@@ -458,6 +465,77 @@ public final class StudioScreen extends Screen {
         project.camera = new SceneProject.Camera();
         status = "Spectator camera reset";
         rebuild();
+    }
+
+    private void choosePng() {
+        this.minecraft.gui.setScreen(new CanvasImagePickerScreen(this, selectedPath -> {
+            try {
+                checkpoint();
+                project.canvasImage = ProjectManager.importCanvasImage(selectedPath);
+                ProjectManager.save(project);
+                status = "PNG linked to project";
+            } catch (IOException exception) {
+                CraftShop.LOGGER.error("Could not import project PNG", exception);
+                status = "PNG import failed: " + exception.getMessage();
+            }
+            rebuild();
+        }));
+    }
+
+    private void open2DEditor() {
+        try {
+            Path image = ProjectManager.resolveCanvasImage(project);
+            if (image == null) {
+                this.minecraft.gui.setScreen(new CanvasImagePickerScreen(this, selectedPath -> {
+                    try {
+                        checkpoint();
+                        project.canvasImage = ProjectManager.importCanvasImage(selectedPath);
+                        ProjectManager.save(project);
+                        openCanvasEditor(ProjectManager.resolveCanvasImage(project));
+                    } catch (IOException exception) {
+                        CraftShop.LOGGER.error("Could not prepare PNG for the 2D editor", exception);
+                        status = "Could not open selected PNG";
+                        rebuild();
+                    }
+                }));
+                return;
+            }
+            openCanvasEditor(image);
+        } catch (IOException exception) {
+            CraftShop.LOGGER.error("Could not resolve project PNG", exception);
+            status = "Could not load project PNG";
+            rebuild();
+        }
+    }
+
+    private void openCanvasEditor(Path image) {
+        this.minecraft.gui.setScreen(new Canvas2DScreen(this, image, exportedImage -> {
+            try {
+                project.canvasImage = ProjectManager.importCanvasImage(exportedImage);
+                ProjectManager.save(project);
+                GalleryTextureCache.invalidate(image);
+                status = "Edited PNG linked to project";
+            } catch (IOException exception) {
+                CraftShop.LOGGER.error("Could not update project PNG after 2D export", exception);
+                status = "Could not update project PNG";
+            }
+        }));
+    }
+
+    private void renderPng() {
+        if (projectNameField != null) project.name = projectNameField.getValue();
+        try {
+            ProjectManager.save(project);
+        } catch (IOException exception) {
+            CraftShop.LOGGER.error("Could not save project before rendering", exception);
+            status = "Save before render failed";
+            rebuild();
+            return;
+        }
+        SceneExporter.beginExport(this.minecraft, this, project, message -> {
+            status = message;
+            rebuild();
+        });
     }
 
     private void openProjectBrowser() {
@@ -490,6 +568,7 @@ public final class StudioScreen extends Screen {
         project = new SceneProject();
         selectedObjectId = null;
         scenePage = 0;
+        if (projectNameField != null) projectNameField.setValue(project.name);
         status = "New scene created";
         rebuild();
     }
