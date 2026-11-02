@@ -213,7 +213,7 @@ public final class StudioScreen extends Screen {
             graphics.text(this.font, selected.locked ? "Locked" : "Unlocked",
                     middleX() + 174, 102, selected.locked ? 0xFFFFB86B : 0xFF9DDDAA, false);
         }
-        graphics.text(this.font, "MOVE  /  0.25 BLOCK", middleX() + 10, 116 + (selected == null ? 20 : 30),
+        graphics.text(this.font, "MOVE  /  0.25 BLOCK", middleX() + 10, 136,
                 0xFF9AA8B8, false);
         graphics.text(this.font, "ROTATE  /  15 DEGREES", middleX() + 10, 188,
                 0xFF9AA8B8, false);
