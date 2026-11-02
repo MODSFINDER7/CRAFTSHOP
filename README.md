@@ -36,6 +36,8 @@ The gallery includes:
 
 The original Minecraft screenshot is left untouched when a gallery copy is renamed or deleted.
 
+For arbitrary PNG imports, place files in `.minecraft/craftshop/canvas/imports`. The 2D Image Picker combines these PNG files with the screenshot gallery.
+
 ## Milestone 2: Blender-inspired Studio interface
 
 The gallery opens a dedicated Studio workspace containing:
