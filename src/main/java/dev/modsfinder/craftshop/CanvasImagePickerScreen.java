@@ -59,8 +59,8 @@ public final class CanvasImagePickerScreen extends Screen {
             addRenderableWidget(Button.builder(
                     Component.literal(path.getFileName().toString()),
                     button -> {
-                        selection.accept(path);
                         this.minecraft.gui.setScreen(parent);
+                        selection.accept(path);
                     }
             ).bounds(left + 54, y + 5, Math.max(180, this.width - 110), 28).build());
         }
