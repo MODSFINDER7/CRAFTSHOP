@@ -77,8 +77,8 @@ public final class Canvas2DScreen extends Screen {
     protected void init() {
         int x = 12;
         int y = 70;
-        int toolStep = this.height < 600 ? 19 : 24;
-        int controlStep = this.height < 600 ? 21 : 24;
+        int toolStep = this.height < 600 ? 18 : 24;
+        int controlStep = this.height < 480 ? 18 : this.height < 600 ? 20 : 24;
         int controlsTop = y + toolStep * 7 + 8;
         addRenderableWidget(toolButton("Brush", x, y));
         addRenderableWidget(toolButton("Eraser", x, y + toolStep));
