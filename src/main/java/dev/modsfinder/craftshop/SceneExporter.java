@@ -44,7 +44,7 @@ public final class SceneExporter {
                 completion.accept("Selected PNG could not be prepared for rendering");
                 return;
             }
-            pending = new Pending(returnScreen, renderScreen, image, project.name, completion, 1);
+            pending = new Pending(returnScreen, renderScreen, image, project, project.name, completion, 1);
             minecraft.gui.setScreen(renderScreen);
         } catch (IOException exception) {
             CraftShop.LOGGER.error("Could not prepare CraftShop scene render", exception);
@@ -144,7 +144,10 @@ public final class SceneExporter {
             throw new IOException("PNG encoder is unavailable");
         }
         output.flush();
-        return "Rendered PNG added to gallery: " + destination.getFileName();
+
+        current.project.canvasImage = ProjectManager.importCanvasImage(destination);
+        ProjectManager.save(current.project);
+        return "Rendered PNG saved to gallery and linked to this project: " + destination.getFileName();
     }
 
     private static int clamp(int value, int minimum, int maximum) {
@@ -155,15 +158,17 @@ public final class SceneExporter {
         final Screen returnScreen;
         final Screen renderScreen;
         final Path imagePath;
+        final SceneProject project;
         final String projectName;
         final Consumer<String> completion;
         int ticksRemaining;
 
-        Pending(Screen returnScreen, Screen renderScreen, Path imagePath, String projectName,
-                Consumer<String> completion, int ticksRemaining) {
+        Pending(Screen returnScreen, Screen renderScreen, Path imagePath, SceneProject project,
+                String projectName, Consumer<String> completion, int ticksRemaining) {
             this.returnScreen = returnScreen;
             this.renderScreen = renderScreen;
             this.imagePath = imagePath;
+            this.project = project;
             this.projectName = projectName;
             this.completion = completion;
             this.ticksRemaining = ticksRemaining;
