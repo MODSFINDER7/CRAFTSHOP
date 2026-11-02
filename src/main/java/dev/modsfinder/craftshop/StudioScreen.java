@@ -73,21 +73,22 @@ public final class StudioScreen extends Screen {
         int top = 76;
         int gap = 3;
         int compact = this.width < 560 ? 56 : 66;
+        int toolStep = this.height < 430 ? 19 : 24;
 
         addRenderableWidget(toolButton("Select", left, top));
-        addRenderableWidget(toolButton("Block Sel", left, top + 24));
-        addRenderableWidget(toolButton("Entity Sel", left, top + 48));
-        addRenderableWidget(toolButton("Move", left, top + 72));
-        addRenderableWidget(toolButton("Rotate", left, top + 96));
-        addRenderableWidget(toolButton("Scale", left, top + 120));
-        addRenderableWidget(toolButton("Orbit", left, top + 144));
-        addRenderableWidget(toolButton("Pan", left, top + 168));
-        addRenderableWidget(toolButton("Zoom", left, top + 192));
-        addRenderableWidget(toolButton("Fly", left, top + 216));
+        addRenderableWidget(toolButton("Block Sel", left, top + toolStep));
+        addRenderableWidget(toolButton("Entity Sel", left, top + toolStep * 2));
+        addRenderableWidget(toolButton("Move", left, top + toolStep * 3));
+        addRenderableWidget(toolButton("Rotate", left, top + toolStep * 4));
+        addRenderableWidget(toolButton("Scale", left, top + toolStep * 5));
+        addRenderableWidget(toolButton("Orbit", left, top + toolStep * 6));
+        addRenderableWidget(toolButton("Pan", left, top + toolStep * 7));
+        addRenderableWidget(toolButton("Zoom", left, top + toolStep * 8));
+        addRenderableWidget(toolButton("Fly", left, top + toolStep * 9));
         addRenderableWidget(Button.builder(Component.literal("Add Block"), button -> openAssetPicker(false))
-                .bounds(left, top + 240, compact, 19).build());
+                .bounds(left, top + toolStep * 10, compact, 19).build());
         addRenderableWidget(Button.builder(Component.literal("Add Entity"), button -> openAssetPicker(true))
-                .bounds(left, top + 262, compact, 19).build());
+                .bounds(left, top + toolStep * 11, compact, 19).build());
 
         int x = 10;
         int rowY = 10;
