@@ -145,7 +145,7 @@ public final class SceneExporter {
         }
         output.flush();
 
-        current.project.canvasImage = ProjectManager.importCanvasImage(destination);
+        current.project.renderedImage = ProjectManager.importCanvasImage(destination);
         ProjectManager.save(current.project);
         return "Rendered PNG saved to gallery and linked to this project: " + destination.getFileName();
     }
