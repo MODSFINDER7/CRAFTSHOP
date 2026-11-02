@@ -96,6 +96,8 @@ public final class StudioScreen extends Screen {
         addButton("Yaw+", buttonX + 44, cameraY + 79, smallW, 20, () -> rotateCamera(10.0F, 0.0F));
         addButton("Pit-", buttonX + 88, cameraY + 79, smallW, 20, () -> rotateCamera(0.0F, -10.0F));
         addButton("Pit+", buttonX, cameraY + 104, smallW, 20, () -> rotateCamera(0.0F, 10.0F));
+        addButton("Zoom+", buttonX + 44, cameraY + 104, smallW, 20, () -> zoomCamera(0.1F));
+        addButton("Zoom-", buttonX + 88, cameraY + 104, smallW, 20, () -> zoomCamera(-0.1F));
 
         int mx = middleX() + 10;
         int pairW = 52;
@@ -457,6 +459,13 @@ public final class StudioScreen extends Screen {
         project.camera.yaw += yaw;
         project.camera.pitch = clamp(project.camera.pitch + pitch, -89.0F, 89.0F);
         status = "Spectator camera orientation updated";
+        rebuild();
+    }
+
+    private void zoomCamera(float amount) {
+        checkpoint();
+        project.camera.zoom = clamp(project.camera.zoom + amount, 0.2F, 4.0F);
+        status = "Camera zoom: " + String.format(java.util.Locale.ROOT, "%.1f", project.camera.zoom);
         rebuild();
     }
 
