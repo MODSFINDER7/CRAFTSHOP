@@ -641,6 +641,7 @@ public final class Canvas2DScreen extends Screen {
         Layer layer = currentLayer();
         layer.strokes.clear();
         layer.texts.clear();
+        layer.shapes.clear();
         status = "Active layer cleared";
     }
 
