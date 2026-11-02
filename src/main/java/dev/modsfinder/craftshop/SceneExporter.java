@@ -145,9 +145,14 @@ public final class SceneExporter {
         }
         output.flush();
 
-        current.project.renderedImage = ProjectManager.importCanvasImage(destination);
-        ProjectManager.save(current.project);
-        return "Rendered PNG saved to gallery and linked to this project: " + destination.getFileName();
+        try {
+            current.project.renderedImage = ProjectManager.importCanvasImage(destination);
+            ProjectManager.save(current.project);
+            return "Rendered PNG saved to gallery and linked to this project: " + destination.getFileName();
+        } catch (IOException exception) {
+            CraftShop.LOGGER.error("Rendered PNG exists, but the project link could not be saved", exception);
+            return "PNG rendered to gallery, but project link save failed: " + exception.getMessage();
+        }
     }
 
     private static int clamp(int value, int minimum, int maximum) {
