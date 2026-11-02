@@ -103,8 +103,6 @@ public final class StudioScreen extends Screen {
         int pairW = 52;
         int pairGap = 4;
         SceneProject.SceneObject selected = selectedObject();
-        boolean hasSelection = selected != null;
-        boolean unlocked = hasSelection && !selected.locked;
 
         addButton("X -", mx, 146, pairW, 20, () -> nudge(0, -MOVE_STEP));
         addButton("X +", mx + pairW + pairGap, 146, pairW, 20, () -> nudge(0, MOVE_STEP));
@@ -198,8 +196,11 @@ public final class StudioScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         graphics.text(this.font, "CRAFTSHOP  /  3D SCENE TOOLS", 14, 48, 0xFF55DDEE, true);
-        String pngLabel = project.canvasImage == null || project.canvasImage.isBlank()
-                ? "No PNG selected" : Path.of(project.canvasImage).getFileName().toString();
+        String pngLabel = "No PNG selected";
+        if (project.canvasImage != null && !project.canvasImage.isBlank()) {
+            int separator = Math.max(project.canvasImage.lastIndexOf('/'), project.canvasImage.lastIndexOf('\\\\'));
+            pngLabel = separator >= 0 ? project.canvasImage.substring(separator + 1) : project.canvasImage;
+        }
         graphics.text(this.font, "PNG: " + trim(pngLabel, 28), 14, 58, 0xFF9AA8B8, false);
         graphics.text(this.font, trim(status, 54),
                 Math.max(180, this.width - this.font.width(trim(status, 54)) - 14), 48,
@@ -550,6 +551,7 @@ public final class StudioScreen extends Screen {
     private void openProjectBrowser() {
         this.minecraft.gui.setScreen(new ProjectBrowserScreen(this, loaded -> {
             checkpoint();
+            SceneAssetRenderer.clear();
             project = loaded;
             selectedObjectId = null;
             scenePage = 0;
@@ -574,6 +576,7 @@ public final class StudioScreen extends Screen {
 
     private void newProject() {
         checkpoint();
+        SceneAssetRenderer.clear();
         project = new SceneProject();
         selectedObjectId = null;
         scenePage = 0;
