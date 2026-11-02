@@ -89,6 +89,10 @@ public final class StudioScreen extends Screen {
         addButton("Back", buttonX + 88, cameraY + 25, smallW, 20,
                 () -> moveCamera(0, 0, 1));
         addButton("Reset", buttonX, cameraY + 52, buttonWidth, 20, this::resetCamera);
+        addButton("Yaw-", buttonX, cameraY + 79, smallW, 20, () -> rotateCamera(-10.0F, 0.0F));
+        addButton("Yaw+", buttonX + 44, cameraY + 79, smallW, 20, () -> rotateCamera(10.0F, 0.0F));
+        addButton("Pit-", buttonX + 88, cameraY + 79, smallW, 20, () -> rotateCamera(0.0F, -10.0F));
+        addButton("Pit+", buttonX, cameraY + 104, smallW, 20, () -> rotateCamera(0.0F, 10.0F));
 
         int mx = middleX() + 10;
         int pairW = 52;
@@ -438,6 +442,14 @@ public final class StudioScreen extends Screen {
         camera.y += vertical * MOVE_STEP;
         camera.z += (float) (Math.sin(yaw) * side - Math.cos(yaw) * forward) * MOVE_STEP;
         status = "Spectator camera position updated";
+        rebuild();
+    }
+
+    private void rotateCamera(float yaw, float pitch) {
+        checkpoint();
+        project.camera.yaw += yaw;
+        project.camera.pitch = clamp(project.camera.pitch + pitch, -89.0F, 89.0F);
+        status = "Spectator camera orientation updated";
         rebuild();
     }
 
