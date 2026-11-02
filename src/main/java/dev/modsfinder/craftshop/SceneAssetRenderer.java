@@ -36,11 +36,11 @@ public final class SceneAssetRenderer {
                 preview = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace("block_display"))
                         .create(minecraft.level, EntitySpawnReason.LOAD);
                 if (!(preview instanceof Display.BlockDisplay blockDisplay)) return;
-                blockDisplay.setBlockState(block.defaultBlockState());
                 PREVIEWS.put(object.id, blockDisplay);
                 preview = blockDisplay;
                 created = true;
             }
+            ((Display.BlockDisplay) preview).setBlockState(block.defaultBlockState());
         } else if ("minecraft_entity".equals(object.kind)) {
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(id);
             if (type == null || id.getPath().equals("player")) return;
