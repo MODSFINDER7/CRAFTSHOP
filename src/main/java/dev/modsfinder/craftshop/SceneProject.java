@@ -5,7 +5,8 @@ import java.util.List;
 import java.util.UUID;
 
 public final class SceneProject {
-    public int formatVersion = 1;
+    public int formatVersion = 2;
+    public String canvasImage = "";
     public String name = "Untitled Scene";
     public Camera camera = new Camera();
     public List<SceneObject> objects = new ArrayList<>();
