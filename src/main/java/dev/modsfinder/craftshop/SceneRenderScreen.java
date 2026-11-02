@@ -67,9 +67,9 @@ public final class SceneRenderScreen extends Screen {
         double forwardZ = -cosYaw * cosPitch;
         double rightX = cosYaw;
         double rightZ = -sinYaw;
-        double upX = sinYaw * sinPitch;
+        double upX = -sinYaw * sinPitch;
         double upY = cosPitch;
-        double upZ = cosYaw * sinPitch;
+        double upZ = -cosYaw * sinPitch;
 
         float focal = Math.min(bounds.width(), bounds.height()) * 0.92F;
         float zoom = Math.max(0.2F, Math.min(4.0F, camera.zoom));
