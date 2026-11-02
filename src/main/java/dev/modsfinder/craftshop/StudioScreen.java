@@ -482,6 +482,7 @@ public final class StudioScreen extends Screen {
             try {
                 checkpoint();
                 project.canvasImage = ProjectManager.importCanvasImage(selectedPath);
+                project.renderedImage = "";
                 ProjectManager.save(project);
                 status = "PNG linked to project";
             } catch (IOException exception) {
@@ -500,6 +501,7 @@ public final class StudioScreen extends Screen {
                     try {
                         checkpoint();
                         project.canvasImage = ProjectManager.importCanvasImage(selectedPath);
+                        project.renderedImage = "";
                         ProjectManager.save(project);
                         openCanvasEditor(ProjectManager.resolveCanvasImage(project));
                     } catch (IOException exception) {
@@ -522,6 +524,7 @@ public final class StudioScreen extends Screen {
         this.minecraft.gui.setScreen(new Canvas2DScreen(this, image, exportedImage -> {
             try {
                 project.canvasImage = ProjectManager.importCanvasImage(exportedImage);
+                project.renderedImage = "";
                 ProjectManager.save(project);
                 GalleryTextureCache.invalidate(image);
                 status = "Edited PNG linked to project";
