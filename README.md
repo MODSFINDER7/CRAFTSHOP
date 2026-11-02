@@ -1,6 +1,6 @@
 # CraftShop
 
-CraftShop is a client-side creative studio for Minecraft Java Edition. The goal is to combine a Photoshop-style 2D editor with a Blender-inspired 3D scene editor inside Minecraft.
+CraftShop is a client-side creative studio for Minecraft Java Edition. It combines a 2D PNG editor with a separate editable 3D scene project.
 
 ## Development target
 
@@ -9,7 +9,7 @@ CraftShop is a client-side creative studio for Minecraft Java Edition. The goal 
 - Java 25
 - Client-side only
 
-## Milestone 1: Screenshot system and gallery
+## Screenshot system and gallery
 
 ### Controls
 
@@ -20,65 +20,38 @@ CraftShop is a client-side creative studio for Minecraft Java Edition. The goal 
 
 Both key mappings can be changed in **Options → Controls → Key Binds → CraftShop**.
 
-### Storage
+Screenshots are copied into `.minecraft/craftshop/screenshots`. The gallery supports cached thumbnails, full-size preview, pagination, rename, delete, open-folder and refresh controls. Original Minecraft screenshots are left untouched when a gallery copy is renamed or deleted.
 
-Minecraft's screenshot capture is used, then new PNG files are copied into:
+Arbitrary PNG files can be placed in `.minecraft/craftshop/canvas/imports` and are available in the 2D image picker.
 
-`.minecraft/craftshop/screenshots`
+## 2D PNG editor
 
-The gallery includes:
-- Cached, downscaled thumbnails and a full-size selected-image preview
-- Pagination for larger screenshot collections
-- Rename and delete controls
-- Open-folder and refresh controls
-- Collision-safe filenames when importing screenshots
-- A bounded texture cache so browsing many screenshots does not retain every image texture in GPU memory
+The 2D editor works with an imported PNG canvas and supports brush and eraser strokes, text placement, line/rectangle/ellipse tools, colour and brush-size controls, layers, visibility, opacity, layer reordering, crop bounds, ink brightness, undo/redo, grayscale/invert/sepia filters, project-relative image assets, named `.craftshop2d` projects, a project browser and full-resolution PNG export.
 
-The original Minecraft screenshot is left untouched when a gallery copy is renamed or deleted.
+It is a lightweight drawing workspace, not a full Photoshop replacement. Advanced masks, selection transforms and advanced typography are not included yet.
 
-For arbitrary PNG imports, place files in `.minecraft/craftshop/canvas/imports`. The 2D Image Picker combines these PNG files with the screenshot gallery.
+## Button-based 3D scene editor
 
-## Milestone 2: Blender-inspired Studio interface
+The 3D Studio is intentionally **not** a Blender-style viewport layout. There is no large central 3D viewport, no scene grid, and no timeline in this interface. Editing is controlled through dedicated buttons and an object list.
 
-The gallery opens a dedicated Studio workspace containing:
-- Top application bar and project controls
-- Left-side tool shelf
-- Central 3D viewport area with grid and axis indicators
-- Scene Outliner
-- Properties panel
-- Timeline and frame ruler
-- Status bar and project information
+- **Place Block** opens a searchable picker of registered Minecraft blocks.
+- **Spawn Mob** opens a searchable picker of registered Minecraft entities.
+- **Add Cube** creates a primitive scene object.
+- Scene objects are selected from the Scene Objects list.
+- Move buttons adjust X/Y/Z position in 0.25-block increments.
+- Rotate buttons adjust X/Y/Z rotation in 15-degree increments.
+- Scale buttons adjust all axes uniformly.
+- Duplicate, Delete, Hide/Show and Lock/Unlock operate on the selected object.
+- Undo/Redo supports up to 80 recorded changes; Ctrl+Z, Ctrl+Y and Ctrl+D are also supported.
+- Spectator-camera position controls are available as buttons.
+- Projects are saved as editable `.craftshop` files in `.minecraft/craftshop/projects`.
 
-The workspace includes a separate **2D Image Editor** alongside the 3D Studio. The editor provides brush strokes, layer erasing, imported-image pixel erasing, text placement, line/rectangle/ellipse shape tools, a colour palette, adjustable brush size, paginated layer selection, visibility, opacity and reorder controls, crop bounds, ink brightness adjustment, snapshot-based undo/redo, PNG import from a selectable gallery/import-folder image picker, grayscale/invert/sepia image filters, project-relative imported image assets, named JSON-based `.craftshop2d` projects with a project browser, and full-resolution PNG export. It is a lightweight drawing workspace rather than a full Photoshop replacement: imported images are used as a canvas background and are not yet directly retouched with pixel-level filters, masks, selection transforms, or advanced typography.
+The 3D scene is independent from the live Minecraft world. Preview objects are not spawned into the player's world and the editor does not place or modify live world blocks.
 
-## Milestone 3: Core 3D editor functionality
+### Rendering limitation
 
-The current editor foundation includes:
-- Editable scene objects with position, rotation, scale, visibility and lock state
-- Wireframe cube primitives in the viewport
-- Viewport selection and Outliner selection
-- Move, rotate and uniform scale tools using viewport dragging
-- Perspective camera positioned in the saved scene, with free-fly movement (select **Fly**, then use W/A/S/D and Q/E; hold Shift to move faster)
-- Right-mouse drag to look around; Orbit, Pan and Zoom tools remain available
-- Focus the selected object or reset the camera from the action bar
-- Axis-constrained transforms: press X, Y or Z while using Move, Rotate or Scale; press the same axis again to return to free transform
-- Add, duplicate, delete, hide/show and lock/unlock scene objects
-- Undo/redo history (Ctrl+Z / Ctrl+Y)
-- Keyboard tool shortcuts (G = Move, R = Rotate, S = Scale)
-- Project save/load using editable `.craftshop` project files
-
-## Milestone 4: Vanilla blocks and entities
-
-The editor includes a searchable vanilla asset picker for registered blocks and entities. Blocks and primitive cubes are previewed through isolated Block Display entities; living entities use Minecraft's entity render-state pipeline. Scene objects are projected into a perspective viewport, depth ordered, and scaled by camera distance. Each scene object stores its Minecraft registry ID and transform, so projects remain editable and portable across sessions. Preview entities are never added to the live world entity list, and the editor does not place or modify world blocks.
-
-**Rendering scope:** this milestone is a perspective scene editor with vanilla model previews, not yet a full replacement Minecraft world renderer with a dedicated off-screen 3D world, lighting pipeline, shadows, and physically correct occlusion between every object.
-
-## Milestone 5: PNG viewport export
-
-The Studio has an **Export PNG** action. It captures the current Studio viewport, crops away the surrounding editor panels, and saves the PNG to the operating system Pictures folder under `Pictures/CraftShop`. The editable `.craftshop` project remains separate from the exported image.
-
-Export uses Minecraft's screenshot readback and NativeImage pipeline; it does not use raw OpenGL, keeping compatibility with the 26.2 rendering backend abstraction.
+The current scene data and button-based editing controls are separate from the exported PNG. A complete off-screen Minecraft scene renderer that composites the 3D scene into the imported PNG is still a development task. The 3D scene project remains editable in its own `.craftshop` file.
 
 ## Build and test policy
 
-A GitHub Actions workflow now runs a Java 25 / Gradle build on pushes and pull requests to `main`. The first automated build is the next verification gate; Minecraft client runtime testing still requires launching the mod in the target game version.
+GitHub Actions builds the mod with Java 25 and Gradle. A successful automated build verifies compilation only; Minecraft client runtime testing still requires launching the mod in Minecraft Java 26.2 with Fabric.
