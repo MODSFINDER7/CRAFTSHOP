@@ -134,6 +134,12 @@ public final class StudioScreen extends Screen {
         actionX += 51;
         addRenderableWidget(Button.builder(Component.literal(currentSelection != null && currentSelection.locked ? "Unlock" : "Lock"),
                 button -> toggleLock()).bounds(actionX, actionY, 52, 19).build());
+        actionX += 55;
+        addRenderableWidget(Button.builder(Component.literal("Focus"), button -> focusSelected())
+                .bounds(actionX, actionY, 48, 19).build());
+        actionX += 51;
+        addRenderableWidget(Button.builder(Component.literal("Reset Cam"), button -> resetCamera())
+                .bounds(actionX, actionY, 66, 19).build());
 
         int row = 0;
         for (SceneProject.SceneObject object : project.objects) {
@@ -518,6 +524,28 @@ public final class StudioScreen extends Screen {
         rebuildStudioWidgets();
     }
 
+    private void focusSelected() {
+        SceneProject.SceneObject selected = selectedObject();
+        if (selected == null) {
+            status = "Select an object to focus";
+            return;
+        }
+        checkpoint();
+        project.camera.x = selected.transform.x;
+        project.camera.y = selected.transform.y + 2.0F;
+        project.camera.z = selected.transform.z + 8.0F;
+        project.camera.yaw = 0.0F;
+        project.camera.pitch = 12.0F;
+        project.camera.zoom = 1.0F;
+        status = "Camera focused on " + selected.name;
+    }
+
+    private void resetCamera() {
+        checkpoint();
+        project.camera = new SceneProject.Camera();
+        status = "Camera reset";
+    }
+
     private void toggleVisibility() {
         SceneProject.SceneObject selected = selectedObject();
         if (selected == null) {
@@ -562,6 +590,7 @@ public final class StudioScreen extends Screen {
     private void openProjectBrowser() {
         this.minecraft.gui.setScreen(new ProjectBrowserScreen(this, loaded -> {
             checkpoint();
+            SceneAssetRenderer.clear();
             project = loaded;
             selectedObjectId = null;
             validateSelection();
@@ -584,6 +613,7 @@ public final class StudioScreen extends Screen {
 
     private void newProject() {
         checkpoint();
+        SceneAssetRenderer.clear();
         project = new SceneProject();
         selectedObjectId = null;
         activeTool = "Select";
@@ -846,6 +876,7 @@ public final class StudioScreen extends Screen {
 
     @Override
     public void onClose() {
+        SceneAssetRenderer.clear();
         returnToParent();
     }
 
