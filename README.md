@@ -46,7 +46,7 @@ The 3D Studio is intentionally **not** a Blender-style viewport layout. There is
 - Spectator-camera position controls are available as buttons.
 - Projects are saved as editable `.craftshop` files in `.minecraft/craftshop/projects`.
 
-The 3D scene is independent from the live Minecraft world. Preview objects are not spawned into the player's world and the editor does not place or modify live world blocks.
+The 3D scene is independent from the live Minecraft world. Preview entities are created only for rendering and are never added to the live level; the editor does not place or modify live world blocks.
 
 ### Rendering limitation
 
