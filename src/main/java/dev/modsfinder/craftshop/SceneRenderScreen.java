@@ -28,6 +28,9 @@ public final class SceneRenderScreen extends Screen {
             imageWidth = image.getWidth();
             imageHeight = image.getHeight();
             image.flush();
+            if (GalleryTextureCache.get(imagePath) == null) {
+                throw new java.io.IOException("PNG texture could not be loaded by Minecraft");
+            }
         } catch (Exception exception) {
             error = exception.getMessage() == null ? "PNG could not be read" : exception.getMessage();
         }
