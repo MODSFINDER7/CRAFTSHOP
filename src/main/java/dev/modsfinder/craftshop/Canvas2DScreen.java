@@ -401,6 +401,8 @@ public final class Canvas2DScreen extends Screen {
                 stroke.color = activeColor;
                 stroke.size = brushSize;
                 stroke.eraser = "Eraser".equals(tool);
+                stroke.eraseBackground = stroke.eraser && document.backgroundImage != null
+                        && !document.backgroundImage.isBlank();
                 stroke.points.add(new Point((float) mouseX, (float) mouseY));
                 layer.strokes.add(stroke);
                 drawing = true;
@@ -797,13 +799,41 @@ public final class Canvas2DScreen extends Screen {
 
             float sx = outputWidth / displayWidth;
             float sy = outputHeight / displayHeight;
+
+            // Apply image eraser strokes directly to the imported raster before compositing paint layers.
+            for (Layer layer : document.layers) {
+                if (!layer.visible) continue;
+                for (Stroke stroke : layer.strokes) {
+                    if (!stroke.eraseBackground || stroke.points == null || stroke.points.isEmpty()) continue;
+                    graphics.setComposite(AlphaComposite.Clear);
+                    graphics.setStroke(new BasicStroke(Math.max(1.0F, stroke.size * (sx + sy) * 0.5F),
+                            BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    Path2D.Float erasePath = new Path2D.Float();
+                    Point first = stroke.points.get(0);
+                    erasePath.moveTo((first.x - displayX) * sx, (first.y - displayY) * sy);
+                    for (int i = 1; i < stroke.points.size(); i++) {
+                        Point point = stroke.points.get(i);
+                        erasePath.lineTo((point.x - displayX) * sx, (point.y - displayY) * sy);
+                    }
+                    if (stroke.points.size() == 1) {
+                        Point point = stroke.points.get(0);
+                        float px = (point.x - displayX) * sx;
+                        float py = (point.y - displayY) * sy;
+                        graphics.draw(new java.awt.geom.Line2D.Float(px, py, px + 0.01F, py + 0.01F));
+                    } else {
+                        graphics.draw(erasePath);
+                    }
+                }
+            }
+            graphics.setComposite(AlphaComposite.SrcOver);
+
             for (Layer layer : document.layers) {
                 if (!layer.visible) continue;
                 BufferedImage layerImage = new BufferedImage(outputWidth, outputHeight, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D layerGraphics = layerImage.createGraphics();
                 layerGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 for (Stroke stroke : layer.strokes) {
-                    if (stroke.points == null || stroke.points.isEmpty()) continue;
+                    if (stroke.eraseBackground || stroke.points == null || stroke.points.isEmpty()) continue;
                     if (stroke.eraser) {
                         layerGraphics.setComposite(AlphaComposite.Clear);
                     } else {
@@ -967,6 +997,7 @@ public final class Canvas2DScreen extends Screen {
         int color;
         int size;
         boolean eraser;
+        boolean eraseBackground;
         List<Point> points = new ArrayList<>();
     }
 
