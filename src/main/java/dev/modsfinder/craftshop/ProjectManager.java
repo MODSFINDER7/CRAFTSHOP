@@ -61,7 +61,11 @@ public final class ProjectManager {
         Files.createDirectories(assets);
         Path destination = assets.resolve(System.currentTimeMillis() + "-" + safe).normalize();
         if (!destination.startsWith(assets)) throw new IOException("Invalid PNG asset path");
-        Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
+        int suffix = 2;
+        while (Files.exists(destination)) {
+            destination = assets.resolve(System.currentTimeMillis() + "-" + suffix++ + "-" + safe).normalize();
+        }
+        Files.copy(source, destination);
         return "assets/" + destination.getFileName();
     }
 
