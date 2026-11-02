@@ -60,6 +60,7 @@ The current editor foundation includes:
 - Move, rotate and uniform scale tools using viewport dragging
 - Perspective camera positioned in the saved scene, with free-fly movement (select **Fly**, then use W/A/S/D and Q/E; hold Shift to move faster)
 - Right-mouse drag to look around; Orbit, Pan and Zoom tools remain available
+- Focus the selected object or reset the camera from the action bar
 - Axis-constrained transforms: press X, Y or Z while using Move, Rotate or Scale; press the same axis again to return to free transform
 - Add, duplicate, delete, hide/show and lock/unlock scene objects
 - Undo/redo history (Ctrl+Z / Ctrl+Y)
