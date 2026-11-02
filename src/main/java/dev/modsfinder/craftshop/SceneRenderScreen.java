@@ -33,6 +33,10 @@ public final class SceneRenderScreen extends Screen {
         }
     }
 
+    public boolean isReady() {
+        return error.isBlank() && imageWidth > 0 && imageHeight > 0;
+    }
+
     public static CanvasBounds canvasBounds(int screenWidth, int screenHeight, int imageWidth, int imageHeight) {
         float scale = Math.min((float) screenWidth / Math.max(1, imageWidth),
                 (float) screenHeight / Math.max(1, imageHeight));
@@ -82,8 +86,6 @@ public final class SceneRenderScreen extends Screen {
             double vertical = dx * upX + dy * upY + dz * upZ;
             int screenX = Math.round((float) (centerX + horizontal * focal * zoom / depth));
             int screenY = Math.round((float) (centerY - vertical * focal * zoom / depth));
-            float baseScale = Math.max(0.05F, Math.min(20.0F,
-                    (object.transform.scaleX + object.transform.scaleY + object.transform.scaleZ) / 3.0F));
             int halfSize = Math.max(5, Math.min(Math.min(bounds.width(), bounds.height()) / 3,
                     Math.round((float) (focal * 0.48F * zoom / depth))));
             if (screenX + halfSize < bounds.x() || screenX - halfSize > bounds.x() + bounds.width()
