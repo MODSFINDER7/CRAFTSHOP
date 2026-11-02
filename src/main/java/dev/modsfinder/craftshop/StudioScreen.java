@@ -33,8 +33,21 @@ public final class StudioScreen extends Screen {
     private int scenePage;
 
     public StudioScreen(Screen parent) {
+        this(parent, null);
+    }
+
+    public StudioScreen(Screen parent, Path initialImage) {
         super(Component.literal("CraftShop 3D Studio"));
         this.parent = parent;
+        if (initialImage != null) {
+            try {
+                project.canvasImage = ProjectManager.importCanvasImage(initialImage);
+                status = "Gallery PNG loaded";
+            } catch (IOException exception) {
+                CraftShop.LOGGER.error("Could not import selected gallery PNG", exception);
+                status = "Could not load selected PNG";
+            }
+        }
     }
 
     private int leftX() { return 12; }
