@@ -83,10 +83,11 @@ public final class StudioScreen extends Screen {
         addRenderableWidget(toolButton("Orbit", left, top + 144));
         addRenderableWidget(toolButton("Pan", left, top + 168));
         addRenderableWidget(toolButton("Zoom", left, top + 192));
+        addRenderableWidget(toolButton("Fly", left, top + 216));
         addRenderableWidget(Button.builder(Component.literal("Add Block"), button -> openAssetPicker(false))
-                .bounds(left, top + 216, compact, 19).build());
+                .bounds(left, top + 240, compact, 19).build());
         addRenderableWidget(Button.builder(Component.literal("Add Entity"), button -> openAssetPicker(true))
-                .bounds(left, top + 238, compact, 19).build());
+                .bounds(left, top + 262, compact, 19).build());
 
         int x = 10;
         int rowY = 10;
@@ -125,6 +126,13 @@ public final class StudioScreen extends Screen {
         actionX += 51;
         addRenderableWidget(Button.builder(Component.literal("Export PNG"), button -> exportViewport())
                 .bounds(actionX, actionY, 72, 19).build());
+        actionX += 75;
+        SceneProject.SceneObject currentSelection = selectedObject();
+        addRenderableWidget(Button.builder(Component.literal(currentSelection != null && currentSelection.visible ? "Hide" : "Show"),
+                button -> toggleVisibility()).bounds(actionX, actionY, 48, 19).build());
+        actionX += 51;
+        addRenderableWidget(Button.builder(Component.literal(currentSelection != null && currentSelection.locked ? "Unlock" : "Lock"),
+                button -> toggleLock()).bounds(actionX, actionY, 52, 19).build());
 
         int row = 0;
         for (SceneProject.SceneObject object : project.objects) {
@@ -509,6 +517,30 @@ public final class StudioScreen extends Screen {
         rebuildStudioWidgets();
     }
 
+    private void toggleVisibility() {
+        SceneProject.SceneObject selected = selectedObject();
+        if (selected == null) {
+            status = "Select an object first";
+            return;
+        }
+        checkpoint();
+        selected.visible = !selected.visible;
+        status = selected.visible ? "Object shown" : "Object hidden";
+        rebuildStudioWidgets();
+    }
+
+    private void toggleLock() {
+        SceneProject.SceneObject selected = selectedObject();
+        if (selected == null) {
+            status = "Select an object first";
+            return;
+        }
+        checkpoint();
+        selected.locked = !selected.locked;
+        status = selected.locked ? "Object locked" : "Object unlocked";
+        rebuildStudioWidgets();
+    }
+
     private void deleteSelected() {
         SceneProject.SceneObject selected = selectedObject();
         if (selected == null) {
@@ -579,7 +611,8 @@ public final class StudioScreen extends Screen {
                 return true;
             }
             if ("Move".equals(activeTool) || "Rotate".equals(activeTool) || "Scale".equals(activeTool)
-                    || "Orbit".equals(activeTool) || "Pan".equals(activeTool) || "Zoom".equals(activeTool)) {
+                    || "Orbit".equals(activeTool) || "Pan".equals(activeTool) || "Zoom".equals(activeTool)
+                    || "Fly".equals(activeTool)) {
                 if (("Move".equals(activeTool) || "Rotate".equals(activeTool) || "Scale".equals(activeTool))
                         && selectedObject() == null) {
                     status = "Select an object first";
@@ -597,12 +630,13 @@ public final class StudioScreen extends Screen {
 
     private void selectAt(double mouseX, double mouseY) {
         SceneProject.SceneObject nearest = null;
-        double nearestDistance = 16.0 * 16.0;
+        double nearestDistance = 52.0 * 52.0;
         for (SceneProject.SceneObject object : project.objects) {
             if ("Block Sel".equals(activeTool) && !"minecraft_block".equals(object.kind)
                     && !"mesh_cube".equals(object.kind)) continue;
             if ("Entity Sel".equals(activeTool) && !"minecraft_entity".equals(object.kind)) continue;
             int[] point = projectToScreen(object.transform.x, object.transform.y, object.transform.z);
+            if (point[0] == Integer.MIN_VALUE) continue;
             double dx = point[0] - mouseX;
             double dy = point[1] - mouseY;
             double distance = dx * dx + dy * dy;
@@ -632,6 +666,11 @@ public final class StudioScreen extends Screen {
         }
 
         SceneProject.SceneObject selected = selectedObject();
+        if (selected != null && selected.locked
+                && ("Move".equals(activeTool) || "Rotate".equals(activeTool) || "Scale".equals(activeTool))) {
+            status = "Object is locked";
+            return true;
+        }
         float zoom = Math.max(0.2F, project.camera.zoom);
         switch (activeTool) {
             case "Move" -> {
@@ -672,8 +711,12 @@ public final class StudioScreen extends Screen {
                 project.camera.pitch = clamp(project.camera.pitch - (float) (dragY * 0.35), -89.0F, 89.0F);
             }
             case "Pan" -> {
-                project.camera.targetX -= (float) (dragX / (30.0 * zoom));
-                project.camera.targetY += (float) (dragY / (30.0 * zoom));
+                float horizontal = (float) (dragX / (30.0 * zoom));
+                float vertical = (float) (dragY / (30.0 * zoom));
+                double yaw = Math.toRadians(project.camera.yaw);
+                project.camera.x -= (float) (horizontal * Math.cos(yaw));
+                project.camera.z += (float) (horizontal * Math.sin(yaw));
+                project.camera.y += vertical;
             }
             case "Zoom" -> project.camera.zoom = clamp(
                     (float) (project.camera.zoom * Math.exp(-dragY * 0.01)), 0.2F, 4.0F
@@ -732,8 +775,8 @@ public final class StudioScreen extends Screen {
             duplicateSelected();
             return true;
         }
-        if (keyCode == 'w' || keyCode == 'a' || keyCode == 's' || keyCode == 'd'
-                || keyCode == 'q' || keyCode == 'e') {
+        if ("Fly".equals(activeTool) && (keyCode == 'w' || keyCode == 'a' || keyCode == 's'
+                || keyCode == 'd' || keyCode == 'q' || keyCode == 'e')) {
             moveCamera(keyCode, event.hasShiftDown() ? 0.9F : 0.3F);
             return true;
         }
