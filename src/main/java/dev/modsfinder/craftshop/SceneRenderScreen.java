@@ -91,8 +91,9 @@ public final class SceneRenderScreen extends Screen {
             int screenY = Math.round((float) (centerY - vertical * focal * zoom / depth));
             int halfSize = Math.max(5, Math.min(Math.min(bounds.width(), bounds.height()) / 3,
                     Math.round((float) (focal * 0.48F * zoom / depth))));
-            if (screenX + halfSize < bounds.x() || screenX - halfSize > bounds.x() + bounds.width()
-                    || screenY + halfSize < bounds.y() || screenY - halfSize > bounds.y() + bounds.height()) {
+            int cullSize = Math.max(4, Math.round(halfSize * baseScale));
+            if (screenX + cullSize < bounds.x() || screenX - cullSize > bounds.x() + bounds.width()
+                    || screenY + cullSize < bounds.y() || screenY - cullSize > bounds.y() + bounds.height()) {
                 continue;
             }
             projected.add(new ProjectedObject(object, screenX, screenY, halfSize, (float) depth));
