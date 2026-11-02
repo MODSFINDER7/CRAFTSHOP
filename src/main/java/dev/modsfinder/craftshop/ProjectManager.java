@@ -10,6 +10,8 @@ import java.io.Reader;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Locale;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -44,6 +46,34 @@ public final class ProjectManager {
             Files.move(temporary, destination, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         }
         return destination;
+    }
+
+    public static String importCanvasImage(Path source) throws IOException {
+        if (source == null || !Files.isRegularFile(source)) {
+            throw new IOException("The selected PNG does not exist");
+        }
+        String original = source.getFileName().toString();
+        String safe = original.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (!safe.toLowerCase(Locale.ROOT).endsWith(".png")) {
+            safe += ".png";
+        }
+        Path assets = getProjectsDirectory().resolve("assets").normalize();
+        Files.createDirectories(assets);
+        Path destination = assets.resolve(System.currentTimeMillis() + "-" + safe).normalize();
+        if (!destination.startsWith(assets)) throw new IOException("Invalid PNG asset path");
+        Files.copy(source, destination, StandardCopyOption.REPLACE_EXISTING);
+        return "assets/" + destination.getFileName();
+    }
+
+    public static Path resolveCanvasImage(SceneProject project) throws IOException {
+        if (project == null || project.canvasImage == null || project.canvasImage.isBlank()) return null;
+        Path root = getProjectsDirectory().toAbsolutePath().normalize();
+        Path stored = Path.of(project.canvasImage);
+        Path resolved = (stored.isAbsolute() ? stored : root.resolve(stored)).toAbsolutePath().normalize();
+        if (!stored.isAbsolute() && !resolved.startsWith(root)) {
+            throw new IOException("Project PNG path is outside the CraftShop project folder");
+        }
+        return Files.isRegularFile(resolved) ? resolved : null;
     }
 
     public static SceneProject load(Path file) throws IOException {
