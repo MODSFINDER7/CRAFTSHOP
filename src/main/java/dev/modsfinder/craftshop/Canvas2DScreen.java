@@ -48,6 +48,11 @@ public final class Canvas2DScreen extends Screen {
     private final Deque<String> redoHistory = new ArrayDeque<>();
     private boolean drawing;
     private boolean cropping;
+    private boolean shaping;
+    private float shapeStartX;
+    private float shapeStartY;
+    private float shapeEndX;
+    private float shapeEndY;
     private float lastX;
     private float lastY;
     private int cropStartX;
@@ -72,33 +77,39 @@ public final class Canvas2DScreen extends Screen {
     protected void init() {
         int x = 12;
         int y = 70;
+        int toolStep = this.height < 600 ? 19 : 24;
+        int controlStep = this.height < 600 ? 21 : 24;
+        int controlsTop = y + toolStep * 7 + 8;
         addRenderableWidget(toolButton("Brush", x, y));
-        addRenderableWidget(toolButton("Eraser", x, y + 24));
-        addRenderableWidget(toolButton("Text", x, y + 48));
-        addRenderableWidget(toolButton("Crop", x, y + 72));
+        addRenderableWidget(toolButton("Eraser", x, y + toolStep));
+        addRenderableWidget(toolButton("Text", x, y + toolStep * 2));
+        addRenderableWidget(toolButton("Crop", x, y + toolStep * 3));
+        addRenderableWidget(toolButton("Line", x, y + toolStep * 4));
+        addRenderableWidget(toolButton("Rectangle", x, y + toolStep * 5));
+        addRenderableWidget(toolButton("Ellipse", x, y + toolStep * 6));
 
         addRenderableWidget(Button.builder(Component.literal("Size -"), b -> brushSize = Math.max(1, brushSize - 2))
-                .bounds(x, y + 104, 78, 20).build());
+                .bounds(x, controlsTop, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Size +"), b -> brushSize = Math.min(40, brushSize + 2))
-                .bounds(x, y + 128, 78, 20).build());
+                .bounds(x, controlsTop + controlStep, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Undo"), b -> undo())
-                .bounds(x, y + 160, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 2, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Redo"), b -> redo())
-                .bounds(x, y + 184, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 3, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Clear"), b -> clearLayer())
-                .bounds(x, y + 208, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 4, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Layer On/Off"), b -> toggleLayer())
-                .bounds(x, y + 232, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 5, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Reset Crop"), b -> resetCrop())
-                .bounds(x, y + 256, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 6, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Opacity +"), b -> adjustLayerOpacity(0.1F))
-                .bounds(x, y + 280, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 7, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Opacity -"), b -> adjustLayerOpacity(-0.1F))
-                .bounds(x, y + 304, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 8, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Layer Up"), b -> moveLayer(-1))
-                .bounds(x, y + 328, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 9, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Layer Down"), b -> moveLayer(1))
-                .bounds(x, y + 352, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 10, 78, 20).build());
 
         addRenderableWidget(Button.builder(Component.literal("New"), b -> newDocument())
                 .bounds(172, 12, 48, 20).build());
@@ -266,12 +277,23 @@ public final class Canvas2DScreen extends Screen {
                     previous = point;
                 }
             }
+            for (ShapeItem item : layer.shapes) {
+                if (insideCrop(item.x1, item.y1) || insideCrop(item.x2, item.y2)) {
+                    drawCanvasShape(graphics, item.type, item.x1, item.y1, item.x2, item.y2,
+                            item.size, withOpacity(adjustColor(item.color, document.brightness), layer.opacity));
+                }
+            }
             for (TextItem item : layer.texts) {
                 if (insideCrop(item.x, item.y)) {
                     graphics.text(font, item.text, Math.round(item.x), Math.round(item.y),
                             withOpacity(adjustColor(item.color, document.brightness), layer.opacity), false);
                 }
             }
+        }
+
+        if (shaping) {
+            drawCanvasShape(graphics, tool, shapeStartX, shapeStartY, shapeEndX, shapeEndY,
+                    brushSize, activeColor);
         }
 
         if (document.cropWidth > 0 && document.cropHeight > 0) {
@@ -326,6 +348,39 @@ public final class Canvas2DScreen extends Screen {
         }
     }
 
+    private void drawCanvasShape(GuiGraphicsExtractor graphics, String type, float x1, float y1,
+                                 float x2, float y2, int size, int color) {
+        if ("Line".equals(type)) {
+            drawSegment(graphics, x1, y1, x2, y2, size, color);
+            return;
+        }
+        float left = Math.min(x1, x2);
+        float top = Math.min(y1, y2);
+        float right = Math.max(x1, x2);
+        float bottom = Math.max(y1, y2);
+        if ("Rectangle".equals(type)) {
+            drawSegment(graphics, left, top, right, top, size, color);
+            drawSegment(graphics, right, top, right, bottom, size, color);
+            drawSegment(graphics, right, bottom, left, bottom, size, color);
+            drawSegment(graphics, left, bottom, left, top, size, color);
+            return;
+        }
+        float centerX = (left + right) * 0.5F;
+        float centerY = (top + bottom) * 0.5F;
+        float radiusX = Math.max(0.5F, (right - left) * 0.5F);
+        float radiusY = Math.max(0.5F, (bottom - top) * 0.5F);
+        float previousX = centerX + radiusX;
+        float previousY = centerY;
+        for (int i = 1; i <= 64; i++) {
+            double angle = Math.PI * 2.0 * i / 64.0;
+            float nextX = centerX + (float) Math.cos(angle) * radiusX;
+            float nextY = centerY + (float) Math.sin(angle) * radiusY;
+            drawSegment(graphics, previousX, previousY, nextX, nextY, size, color);
+            previousX = nextX;
+            previousY = nextY;
+        }
+    }
+
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         double mouseX = event.x();
@@ -359,6 +414,12 @@ public final class Canvas2DScreen extends Screen {
                 status = "Text position selected; enter text on the right";
                 return true;
             }
+            if ("Line".equals(tool) || "Rectangle".equals(tool) || "Ellipse".equals(tool)) {
+                shaping = true;
+                shapeStartX = shapeEndX = (float) mouseX;
+                shapeStartY = shapeEndY = (float) mouseY;
+                return true;
+            }
         }
         return super.mouseClicked(event, doubleClick);
     }
@@ -377,6 +438,11 @@ public final class Canvas2DScreen extends Screen {
             cropEndY = clamp((int) mouseY, canvasTop(), canvasBottom());
             return true;
         }
+        if (shaping) {
+            shapeEndX = (float) Math.max(canvasLeft(), Math.min(canvasRight() - 1, mouseX));
+            shapeEndY = (float) Math.max(canvasTop(), Math.min(canvasBottom() - 1, mouseY));
+            return true;
+        }
         if (drawing) {
             float x = (float) Math.max(canvasLeft(), Math.min(canvasRight() - 1, mouseX));
             float y = (float) Math.max(canvasTop(), Math.min(canvasBottom() - 1, mouseY));
@@ -391,6 +457,16 @@ public final class Canvas2DScreen extends Screen {
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         int button = event.button();
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && shaping) {
+            shaping = false;
+            if (Math.hypot(shapeEndX - shapeStartX, shapeEndY - shapeStartY) > 2.0) {
+                checkpoint();
+                currentLayer().shapes.add(new ShapeItem(tool, shapeStartX, shapeStartY,
+                        shapeEndX, shapeEndY, activeColor, brushSize));
+                status = tool + " added";
+            }
+            return true;
+        }
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && drawing) {
             drawing = false;
             status = "Stroke added";
@@ -612,6 +688,7 @@ public final class Canvas2DScreen extends Screen {
             layer.opacity = Math.max(0.05F, Math.min(1.0F, layer.opacity));
             if (layer.strokes == null) layer.strokes = new ArrayList<>();
             if (layer.texts == null) layer.texts = new ArrayList<>();
+            if (layer.shapes == null) layer.shapes = new ArrayList<>();
             for (Stroke stroke : layer.strokes) if (stroke.points == null) stroke.points = new ArrayList<>();
         }
         candidate.layers.removeIf(java.util.Objects::isNull);
@@ -753,6 +830,25 @@ public final class Canvas2DScreen extends Screen {
                 layerGraphics.setComposite(AlphaComposite.SrcOver);
                 layerGraphics.setColor(Color.WHITE);
                 layerGraphics.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, Math.max(12, Math.round(16 * sx))));
+                for (ShapeItem item : layer.shapes) {
+                    layerGraphics.setColor(new Color(adjustColor(item.color, document.brightness), true));
+                    layerGraphics.setStroke(new BasicStroke(Math.max(1.0F, item.size * (sx + sy) * 0.5F),
+                            BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    float x1 = (item.x1 - displayX) * sx;
+                    float y1 = (item.y1 - displayY) * sy;
+                    float x2 = (item.x2 - displayX) * sx;
+                    float y2 = (item.y2 - displayY) * sy;
+                    float left = Math.min(x1, x2);
+                    float top = Math.min(y1, y2);
+                    float width = Math.abs(x2 - x1);
+                    float height = Math.abs(y2 - y1);
+                    switch (item.type) {
+                        case "Line" -> layerGraphics.draw(new java.awt.geom.Line2D.Float(x1, y1, x2, y2));
+                        case "Rectangle" -> layerGraphics.draw(new java.awt.geom.Rectangle2D.Float(left, top, width, height));
+                        case "Ellipse" -> layerGraphics.draw(new java.awt.geom.Ellipse2D.Float(left, top, width, height));
+                        default -> { }
+                    }
+                }
                 for (TextItem item : layer.texts) {
                     layerGraphics.setColor(new Color(adjustColor(item.color, document.brightness), true));
                     layerGraphics.drawString(item.text, (item.x - displayX) * sx, (item.y - displayY) * sy);
@@ -862,6 +958,7 @@ public final class Canvas2DScreen extends Screen {
         float opacity = 1.0F;
         List<Stroke> strokes = new ArrayList<>();
         List<TextItem> texts = new ArrayList<>();
+        List<ShapeItem> shapes = new ArrayList<>();
         Layer(String name) { this.name = name; }
     }
 
@@ -870,6 +967,25 @@ public final class Canvas2DScreen extends Screen {
         int size;
         boolean eraser;
         List<Point> points = new ArrayList<>();
+    }
+
+    private static final class ShapeItem {
+        String type;
+        float x1;
+        float y1;
+        float x2;
+        float y2;
+        int color;
+        int size;
+        ShapeItem(String type, float x1, float y1, float x2, float y2, int color, int size) {
+            this.type = type;
+            this.x1 = x1;
+            this.y1 = y1;
+            this.x2 = x2;
+            this.y2 = y2;
+            this.color = color;
+            this.size = size;
+        }
     }
 
     private static final class Point {
