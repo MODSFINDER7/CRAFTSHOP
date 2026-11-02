@@ -399,9 +399,9 @@ public final class StudioScreen extends Screen {
         double dz = worldZ - camera.z;
 
         double right = dx * Math.cos(yaw) + dz * Math.sin(yaw);
-        double forward = -dx * Math.sin(yaw) - dz * Math.cos(yaw);
-        double vertical = dy * Math.cos(pitch) + forward * Math.sin(pitch);
-        double depth = forward * Math.cos(pitch) - dy * Math.sin(pitch);
+        double forward = dx * Math.sin(yaw) - dz * Math.cos(yaw);
+        double vertical = dy * Math.cos(pitch) - forward * Math.sin(pitch);
+        double depth = forward * Math.cos(pitch) + dy * Math.sin(pitch);
         if (depth <= 0.05) return new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE, 0};
 
         double scale = 280.0 * Math.max(0.15F, camera.zoom) / depth;
@@ -660,7 +660,7 @@ public final class StudioScreen extends Screen {
 
         if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT || "Orbit".equals(activeTool)) {
             project.camera.yaw += (float) (dragX * 0.35);
-            project.camera.pitch = clamp(project.camera.pitch - (float) (dragY * 0.35), -89.0F, 89.0F);
+            project.camera.pitch = clamp(project.camera.pitch + (float) (dragY * 0.35), -89.0F, 89.0F);
             dragChanged = true;
             status = "Camera look • yaw " + format(project.camera.yaw) + "°";
             return true;
@@ -683,7 +683,7 @@ public final class StudioScreen extends Screen {
                 else {
                     double yaw = Math.toRadians(project.camera.yaw);
                     selected.transform.x += (float) (horizontal * Math.cos(yaw));
-                    selected.transform.z -= (float) (horizontal * Math.sin(yaw));
+                    selected.transform.z += (float) (horizontal * Math.sin(yaw));
                     selected.transform.y -= vertical;
                 }
             }
@@ -709,14 +709,14 @@ public final class StudioScreen extends Screen {
             }
             case "Orbit" -> {
                 project.camera.yaw += (float) (dragX * 0.35);
-                project.camera.pitch = clamp(project.camera.pitch - (float) (dragY * 0.35), -89.0F, 89.0F);
+                project.camera.pitch = clamp(project.camera.pitch + (float) (dragY * 0.35), -89.0F, 89.0F);
             }
             case "Pan" -> {
                 float horizontal = (float) (dragX / (30.0 * zoom));
                 float vertical = (float) (dragY / (30.0 * zoom));
                 double yaw = Math.toRadians(project.camera.yaw);
                 project.camera.x -= (float) (horizontal * Math.cos(yaw));
-                project.camera.z += (float) (horizontal * Math.sin(yaw));
+                project.camera.z -= (float) (horizontal * Math.sin(yaw));
                 project.camera.y += vertical;
             }
             case "Zoom" -> project.camera.zoom = clamp(
@@ -820,10 +820,10 @@ public final class StudioScreen extends Screen {
     private void moveCamera(int key, float amount) {
         SceneProject.Camera camera = project.camera;
         double yaw = Math.toRadians(camera.yaw);
-        float forwardX = (float) -Math.sin(yaw);
+        float forwardX = (float) Math.sin(yaw);
         float forwardZ = (float) -Math.cos(yaw);
         float rightX = (float) Math.cos(yaw);
-        float rightZ = (float) -Math.sin(yaw);
+        float rightZ = (float) Math.sin(yaw);
         switch (key) {
             case 'w' -> { camera.x += forwardX * amount; camera.z += forwardZ * amount; }
             case 's' -> { camera.x -= forwardX * amount; camera.z -= forwardZ * amount; }
