@@ -56,15 +56,19 @@ The current editor foundation includes:
 - Wireframe cube primitives in the viewport
 - Viewport selection and Outliner selection
 - Move, rotate and uniform scale tools using viewport dragging
-- Camera orbit, pan and zoom controls
-- Add, duplicate and delete scene objects
+- Perspective camera positioned in the saved scene, with free-fly movement (select **Fly**, then use W/A/S/D and Q/E; hold Shift to move faster)
+- Right-mouse drag to look around; Orbit, Pan and Zoom tools remain available
+- Axis-constrained transforms: press X, Y or Z while using Move, Rotate or Scale; press the same axis again to return to free transform
+- Add, duplicate, delete, hide/show and lock/unlock scene objects
 - Undo/redo history (Ctrl+Z / Ctrl+Y)
 - Keyboard tool shortcuts (G = Move, R = Rotate, S = Scale)
 - Project save/load using editable `.craftshop` project files
 
 ## Milestone 4: Vanilla blocks and entities
 
-The editor includes a searchable vanilla asset picker for registered blocks and entities. Blocks are previewed through isolated Block Display entities and living entities through the current entity render-state pipeline. Each scene object stores its Minecraft registry ID, so projects remain editable and portable across sessions. The preview entities are never added to the live world entity list, and the editor does not place or modify world blocks. Player mannequin assets are available when registered by the target game version.
+The editor includes a searchable vanilla asset picker for registered blocks and entities. Blocks and primitive cubes are previewed through isolated Block Display entities; living entities use Minecraft's entity render-state pipeline. Scene objects are projected into a perspective viewport, depth ordered, and scaled by camera distance. Each scene object stores its Minecraft registry ID and transform, so projects remain editable and portable across sessions. Preview entities are never added to the live world entity list, and the editor does not place or modify world blocks.
+
+**Rendering scope:** this milestone is a perspective scene editor with vanilla model previews, not yet a full replacement Minecraft world renderer with a dedicated off-screen 3D world, lighting pipeline, shadows, and physically correct occlusion between every object.
 
 ## Milestone 5: PNG viewport export
 
