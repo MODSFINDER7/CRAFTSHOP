@@ -207,7 +207,35 @@ public final class StudioScreen extends Screen {
 
         int gridStartY = viewportTop + 28;
         int gridEndY = viewportBottom - 12;
-render viewport
+        drawGroundGrid(graphics);
+
+        java.util.List<SceneProject.SceneObject> renderOrder = project.objects.stream()
+                .filter(object -> object.visible)
+                .sorted(Comparator.comparingInt((SceneProject.SceneObject object) ->
+                        projectToScreen(object.transform.x, object.transform.y, object.transform.z)[2]).reversed())
+                .toList();
+
+        for (SceneProject.SceneObject object : renderOrder) {
+            int[] screen = projectToScreen(object.transform.x, object.transform.y, object.transform.z);
+            int x = screen[0];
+            int y = screen[1];
+            if (x == Integer.MIN_VALUE || x < left - 80 || x > right + 80
+                    || y < viewportTop - 80 || y > viewportBottom + 80) continue;
+
+            boolean selected = object.id.equals(selectedObjectId);
+            int markerColor = selected ? 0xFFFFD166 : 0xFF55DDEE;
+            if ("mesh_cube".equals(object.kind)) {
+                drawWireCube(graphics, object, selected ? 0xFFFFD166 : 0xFF7B91A8);
+            }
+            int previewSize = (int) clamp(180.0F * project.camera.zoom / Math.max(1.0F, screen[2] / 100.0F),
+                    7.0F, 42.0F);
+            SceneAssetRenderer.extract(graphics, object, this.minecraft, x, y, previewSize);
+            graphics.fill(x - 3, y - 3, x + 4, y + 4, markerColor);
+            if (selected) graphics.outline(x - previewSize, y - previewSize,
+                    previewSize * 2, previewSize * 2, 0xFFFFFFFF);
+            graphics.text(this.font, object.name, x + previewSize + 3, y - 4,
+                    selected ? 0xFFFFD166 : 0xFFD0D9E2, false);
+        }
 
         if (project.objects.isEmpty()) {
             graphics.centeredText(this.font, "Empty scene", centerX, centerY + 76, 0xFF8495A8);
@@ -271,6 +299,27 @@ render viewport
                 Math.max(260, this.width - 420), this.height - 7, 0xFF7F8D9C, false);
     }
 
+    private void drawGroundGrid(GuiGraphicsExtractor graphics) {
+        for (int coordinate = -10; coordinate <= 10; coordinate++) {
+            int color = coordinate == 0 ? 0xAA4C8ED8 : 0x33495B6D;
+            int[] a = projectToScreen(coordinate, 0.0F, -10.0F);
+            int[] b = projectToScreen(coordinate, 0.0F, 10.0F);
+            int[] c = projectToScreen(-10.0F, 0.0F, coordinate);
+            int[] d = projectToScreen(10.0F, 0.0F, coordinate);
+            drawProjectedLine(graphics, a, b, color);
+            drawProjectedLine(graphics, c, d, coordinate == 0 ? 0xAAE28A72 : 0x33495B6D);
+        }
+    }
+
+    private void drawProjectedLine(GuiGraphicsExtractor graphics, int[] a, int[] b, int color) {
+        if (a[0] == Integer.MIN_VALUE || b[0] == Integer.MIN_VALUE) return;
+        int marginX = this.width * 2;
+        int marginY = this.height * 2;
+        if (Math.abs(a[0]) > marginX || Math.abs(b[0]) > marginX
+                || Math.abs(a[1]) > marginY || Math.abs(b[1]) > marginY) return;
+        drawLine(graphics, a[0], a[1], b[0], b[1], color);
+    }
+
     private void drawWireCube(GuiGraphicsExtractor graphics, SceneProject.SceneObject object, int color) {
         float half = 0.5F;
         float[][] local = {
@@ -316,6 +365,9 @@ render viewport
     }
 
     private static void drawLine(GuiGraphicsExtractor graphics, int x1, int y1, int x2, int y2, int color) {
+        if (x1 == Integer.MIN_VALUE || x2 == Integer.MIN_VALUE
+                || Math.abs(x1) > 10000 || Math.abs(x2) > 10000
+                || Math.abs(y1) > 10000 || Math.abs(y2) > 10000) return;
         int steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
         if (steps == 0) {
             graphics.fill(x1, y1, x1 + 2, y1 + 2, color);
@@ -596,14 +648,24 @@ render viewport
                 }
             }
             case "Rotate" -> {
-                selected.transform.rotationY += (float) dragX;
-                selected.transform.rotationX += (float) dragY;
+                if (transformAxis == 'x') selected.transform.rotationX += (float) dragX;
+                else if (transformAxis == 'y') selected.transform.rotationY += (float) dragX;
+                else if (transformAxis == 'z') selected.transform.rotationZ += (float) dragX;
+                else {
+                    selected.transform.rotationY += (float) dragX;
+                    selected.transform.rotationX += (float) dragY;
+                }
             }
             case "Scale" -> {
                 float factor = (float) Math.exp(dragX * 0.01);
-                selected.transform.scaleX = clamp(selected.transform.scaleX * factor, 0.05F, 20.0F);
-                selected.transform.scaleY = clamp(selected.transform.scaleY * factor, 0.05F, 20.0F);
-                selected.transform.scaleZ = clamp(selected.transform.scaleZ * factor, 0.05F, 20.0F);
+                if (transformAxis == 'x') selected.transform.scaleX = clamp(selected.transform.scaleX * factor, 0.05F, 20.0F);
+                else if (transformAxis == 'y') selected.transform.scaleY = clamp(selected.transform.scaleY * factor, 0.05F, 20.0F);
+                else if (transformAxis == 'z') selected.transform.scaleZ = clamp(selected.transform.scaleZ * factor, 0.05F, 20.0F);
+                else {
+                    selected.transform.scaleX = clamp(selected.transform.scaleX * factor, 0.05F, 20.0F);
+                    selected.transform.scaleY = clamp(selected.transform.scaleY * factor, 0.05F, 20.0F);
+                    selected.transform.scaleZ = clamp(selected.transform.scaleZ * factor, 0.05F, 20.0F);
+                }
             }
             case "Orbit" -> {
                 project.camera.yaw += (float) (dragX * 0.35);
