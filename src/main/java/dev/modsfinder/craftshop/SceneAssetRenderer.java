@@ -67,8 +67,9 @@ public final class SceneAssetRenderer {
                 (float) Math.toRadians(object.transform.rotationX),
                 (float) Math.toRadians(object.transform.rotationY),
                 (float) Math.toRadians(object.transform.rotationZ));
-        graphics.entity(state, size * scale, new Vector3f(0.0F, 0.0F, 0.0F),
-                rotation, null, x - size, y - size, x + size, y + size);
+        int renderSize = Math.max(4, Math.round(size * scale));
+        graphics.entity(state, renderSize, new Vector3f(0.0F, 0.0F, 0.0F),
+                rotation, null, x - renderSize, y - renderSize, x + renderSize, y + renderSize);
     }
 
     public static void forget(String objectId) {
