@@ -89,6 +89,8 @@ public final class SceneRenderScreen extends Screen {
             double vertical = dx * upX + dy * upY + dz * upZ;
             int screenX = Math.round((float) (centerX + horizontal * focal * zoom / depth));
             int screenY = Math.round((float) (centerY - vertical * focal * zoom / depth));
+            float baseScale = Math.max(0.05F, Math.min(4.0F,
+                    (object.transform.scaleX + object.transform.scaleY + object.transform.scaleZ) / 3.0F));
             int halfSize = Math.max(5, Math.min(Math.min(bounds.width(), bounds.height()) / 3,
                     Math.round((float) (focal * 0.48F * zoom / depth))));
             int cullSize = Math.max(4, Math.round(halfSize * baseScale));
