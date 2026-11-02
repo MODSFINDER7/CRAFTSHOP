@@ -12,6 +12,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Comparator;
 import java.util.UUID;
 
 public final class StudioScreen extends Screen {
@@ -29,6 +30,8 @@ public final class StudioScreen extends Screen {
     private EditBox projectNameField;
     private boolean draggingViewport;
     private boolean dragChanged;
+    private int dragButton = GLFW.GLFW_MOUSE_BUTTON_LEFT;
+    private char transformAxis = ' ';
 
     public StudioScreen(Screen parent) {
         super(Component.literal("CraftShop 3D Studio"));
@@ -204,35 +207,7 @@ public final class StudioScreen extends Screen {
 
         int gridStartY = viewportTop + 28;
         int gridEndY = viewportBottom - 12;
-        for (int x = left + 18; x < right - 8; x += 24) {
-            graphics.verticalLine(x, gridStartY, gridEndY, 0x223B4A5B);
-        }
-        for (int y = gridStartY; y < gridEndY; y += 24) {
-            graphics.horizontalLine(left + 8, right - 8, y, 0x223B4A5B);
-        }
-
-        graphics.horizontalLine(centerX - 78, centerX + 78, centerY, 0xAA4C8ED8);
-        graphics.verticalLine(centerX, centerY - 62, centerY + 62, 0xAA55B879);
-        graphics.fill(centerX - 2, centerY - 2, centerX + 3, centerY + 3, 0xFFFFFFFF);
-        graphics.text(this.font, "X", centerX + 82, centerY - 4, 0xFF6FA8FF, true);
-        graphics.text(this.font, "Y", centerX + 5, centerY - 70, 0xFF70D58E, true);
-        graphics.text(this.font, "Z", centerX - 90, centerY + 7, 0xFFE28A72, true);
-
-        for (SceneProject.SceneObject object : project.objects) {
-            if (!object.visible) continue;
-            int[] screen = projectToScreen(object.transform.x, object.transform.y, object.transform.z);
-            int x = screen[0];
-            int y = screen[1];
-            if (x < left + 8 || x > right - 8 || y < viewportTop + 24 || y > viewportBottom - 8) continue;
-
-            boolean selected = object.id.equals(selectedObjectId);
-            int markerColor = selected ? 0xFFFFD166 : 0xFF55DDEE;
-            drawWireCube(graphics, object, selected ? 0xFFFFD166 : 0xFF7B91A8);
-            SceneAssetRenderer.extract(graphics, object, this.minecraft, x, y, 18);
-            graphics.fill(x - 3, y - 3, x + 4, y + 4, markerColor);
-            if (selected) graphics.outline(x - 7, y - 7, 14, 14, 0xFFFFFFFF);
-            graphics.text(this.font, object.name, x + 13, y - 4, selected ? 0xFFFFD166 : 0xFFD0D9E2, false);
-        }
+render viewport
 
         if (project.objects.isEmpty()) {
             graphics.centeredText(this.font, "Empty scene", centerX, centerY + 76, 0xFF8495A8);
@@ -292,8 +267,8 @@ public final class StudioScreen extends Screen {
         graphics.fill(0, this.height - 8, this.width, this.height, 0xFF0B0E13);
         graphics.text(this.font, "CRAFTSHOP  •  " + project.name + "  •  " + project.objects.size() + " objects",
                 10, this.height - 7, 0xFF7F8D9C, false);
-        graphics.text(this.font, "G Move  R Rotate  S Scale  Ctrl+Z Undo  Ctrl+Y Redo",
-                Math.max(260, this.width - 310), this.height - 7, 0xFF7F8D9C, false);
+        graphics.text(this.font, "WASD Fly  Q/E Up/Down  Right-drag Look  G/R/S Transform  X/Y/Z Axis",
+                Math.max(260, this.width - 420), this.height - 7, 0xFF7F8D9C, false);
     }
 
     private void drawWireCube(GuiGraphicsExtractor graphics, SceneProject.SceneObject object, int color) {
@@ -358,20 +333,20 @@ public final class StudioScreen extends Screen {
         SceneProject.Camera camera = project.camera;
         double yaw = Math.toRadians(camera.yaw);
         double pitch = Math.toRadians(camera.pitch);
-        double dx = worldX - camera.targetX;
-        double dy = worldY - camera.targetY;
-        double dz = worldZ - camera.targetZ;
+        double dx = worldX - camera.x;
+        double dy = worldY - camera.y;
+        double dz = worldZ - camera.z;
 
-        double rotatedX = dx * Math.cos(yaw) - dz * Math.sin(yaw);
-        double rotatedZ = dx * Math.sin(yaw) + dz * Math.cos(yaw);
-        double rotatedY = dy * Math.cos(pitch) - rotatedZ * Math.sin(pitch);
-        double depth = dy * Math.sin(pitch) + rotatedZ * Math.cos(pitch);
-        double perspective = 320.0 / Math.max(80.0, 320.0 + depth * 18.0);
-        double scale = 30.0 * camera.zoom * perspective;
+        double right = dx * Math.cos(yaw) + dz * Math.sin(yaw);
+        double forward = -dx * Math.sin(yaw) - dz * Math.cos(yaw);
+        double vertical = dy * Math.cos(pitch) + forward * Math.sin(pitch);
+        double depth = forward * Math.cos(pitch) - dy * Math.sin(pitch);
+        if (depth <= 0.05) return new int[]{Integer.MIN_VALUE, Integer.MIN_VALUE, 0};
 
-        int screenX = (int) Math.round((viewportLeft() + viewportRight()) / 2.0 + rotatedX * scale);
-        int screenY = (int) Math.round((66 + timelineTop() - 8) / 2.0 - rotatedY * scale);
-        return new int[]{screenX, screenY};
+        double scale = 280.0 * Math.max(0.15F, camera.zoom) / depth;
+        int screenX = (int) Math.round((viewportLeft() + viewportRight()) / 2.0 + right * scale);
+        int screenY = (int) Math.round((66 + timelineTop() - 8) / 2.0 - vertical * scale);
+        return new int[]{screenX, screenY, (int) Math.round(depth * 100.0)};
     }
 
     private static String format(float value) {
@@ -537,9 +512,16 @@ public final class StudioScreen extends Screen {
         double mouseX = event.x();
         double mouseY = event.y();
         int button = event.button();
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
+        if ((button == GLFW.GLFW_MOUSE_BUTTON_LEFT || button == GLFW.GLFW_MOUSE_BUTTON_RIGHT)
                 && mouseX >= viewportLeft() && mouseX <= viewportRight()
                 && mouseY >= 66 && mouseY <= timelineTop() - 8) {
+            if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+                checkpoint();
+                draggingViewport = true;
+                dragChanged = false;
+                dragButton = button;
+                return true;
+            }
             if ("Select".equals(activeTool) || "Block Sel".equals(activeTool) || "Entity Sel".equals(activeTool)) {
                 selectAt(mouseX, mouseY);
                 return true;
@@ -554,6 +536,7 @@ public final class StudioScreen extends Screen {
                 checkpoint();
                 draggingViewport = true;
                 dragChanged = false;
+                dragButton = button;
                 return true;
             }
         }
@@ -584,16 +567,33 @@ public final class StudioScreen extends Screen {
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
         int button = event.button();
-        if (!draggingViewport || button != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+        if (!draggingViewport || button != dragButton) {
             return super.mouseDragged(event, dragX, dragY);
+        }
+
+        if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT || "Orbit".equals(activeTool)) {
+            project.camera.yaw += (float) (dragX * 0.35);
+            project.camera.pitch = clamp(project.camera.pitch - (float) (dragY * 0.35), -89.0F, 89.0F);
+            dragChanged = true;
+            status = "Camera look • yaw " + format(project.camera.yaw) + "°";
+            return true;
         }
 
         SceneProject.SceneObject selected = selectedObject();
         float zoom = Math.max(0.2F, project.camera.zoom);
         switch (activeTool) {
             case "Move" -> {
-                selected.transform.x += (float) (dragX / (30.0 * zoom));
-                selected.transform.y -= (float) (dragY / (30.0 * zoom));
+                float horizontal = (float) (dragX / (30.0 * zoom));
+                float vertical = (float) (dragY / (30.0 * zoom));
+                if (transformAxis == 'x') selected.transform.x += horizontal;
+                else if (transformAxis == 'y') selected.transform.y -= vertical;
+                else if (transformAxis == 'z') selected.transform.z += vertical;
+                else {
+                    double yaw = Math.toRadians(project.camera.yaw);
+                    selected.transform.x += (float) (horizontal * Math.cos(yaw));
+                    selected.transform.z -= (float) (horizontal * Math.sin(yaw));
+                    selected.transform.y -= vertical;
+                }
             }
             case "Rotate" -> {
                 selected.transform.rotationY += (float) dragX;
@@ -606,8 +606,8 @@ public final class StudioScreen extends Screen {
                 selected.transform.scaleZ = clamp(selected.transform.scaleZ * factor, 0.05F, 20.0F);
             }
             case "Orbit" -> {
-                project.camera.yaw += (float) (dragX * 0.5);
-                project.camera.pitch = clamp(project.camera.pitch + (float) (dragY * 0.5), -89.0F, 89.0F);
+                project.camera.yaw += (float) (dragX * 0.35);
+                project.camera.pitch = clamp(project.camera.pitch - (float) (dragY * 0.35), -89.0F, 89.0F);
             }
             case "Pan" -> {
                 project.camera.targetX -= (float) (dragX / (30.0 * zoom));
@@ -626,7 +626,7 @@ public final class StudioScreen extends Screen {
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         int button = event.button();
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && draggingViewport) {
+        if (button == dragButton && draggingViewport) {
             draggingViewport = false;
             if (!dragChanged && !undoHistory.isEmpty()) {
                 undoHistory.pop();
@@ -670,6 +670,16 @@ public final class StudioScreen extends Screen {
             duplicateSelected();
             return true;
         }
+        if (keyCode == 'w' || keyCode == 'a' || keyCode == 's' || keyCode == 'd'
+                || keyCode == 'q' || keyCode == 'e') {
+            moveCamera(keyCode, event.hasShiftDown() ? 0.9F : 0.3F);
+            return true;
+        }
+        if (keyCode == 'x' || keyCode == 'y' || keyCode == 'z') {
+            transformAxis = transformAxis == (char) keyCode ? ' ' : (char) keyCode;
+            status = transformAxis == ' ' ? "Free transform axes" : "Constrained to " + Character.toUpperCase(transformAxis);
+            return true;
+        }
         if (keyCode == 'g') {
             activeTool = "Move";
             status = "Move tool selected";
@@ -699,6 +709,25 @@ public final class StudioScreen extends Screen {
             return true;
         }
         return super.keyPressed(event);
+    }
+
+    private void moveCamera(int key, float amount) {
+        SceneProject.Camera camera = project.camera;
+        double yaw = Math.toRadians(camera.yaw);
+        float forwardX = (float) -Math.sin(yaw);
+        float forwardZ = (float) -Math.cos(yaw);
+        float rightX = (float) Math.cos(yaw);
+        float rightZ = (float) -Math.sin(yaw);
+        switch (key) {
+            case 'w' -> { camera.x += forwardX * amount; camera.z += forwardZ * amount; }
+            case 's' -> { camera.x -= forwardX * amount; camera.z -= forwardZ * amount; }
+            case 'a' -> { camera.x -= rightX * amount; camera.z -= rightZ * amount; }
+            case 'd' -> { camera.x += rightX * amount; camera.z += rightZ * amount; }
+            case 'q' -> camera.y -= amount;
+            case 'e' -> camera.y += amount;
+            default -> { }
+        }
+        status = "Camera: " + format(camera.x) + ", " + format(camera.y) + ", " + format(camera.z);
     }
 
     private static float clamp(float value, float minimum, float maximum) {
