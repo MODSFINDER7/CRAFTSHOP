@@ -101,9 +101,9 @@ public final class StudioScreen extends Screen {
         addButton("Cam ^", buttonX + 88, cameraY, smallW, 20, () -> moveCamera(0, 1, 0));
         addButton("Cam v", buttonX, cameraY + 25, smallW, 20, () -> moveCamera(0, -1, 0));
         addButton("Forward", buttonX + 44, cameraY + 25, smallW, 20,
-                () -> moveCamera(0, 0, -1));
-        addButton("Back", buttonX + 88, cameraY + 25, smallW, 20,
                 () -> moveCamera(0, 0, 1));
+        addButton("Back", buttonX + 88, cameraY + 25, smallW, 20,
+                () -> moveCamera(0, 0, -1));
         addButton("Reset", buttonX, cameraY + 52, buttonWidth, 20, this::resetCamera);
         addButton("Yaw-", buttonX, cameraY + 79, smallW, 20, () -> rotateCamera(-10.0F, 0.0F));
         addButton("Yaw+", buttonX + 44, cameraY + 79, smallW, 20, () -> rotateCamera(10.0F, 0.0F));
@@ -463,7 +463,7 @@ public final class StudioScreen extends Screen {
         double yaw = Math.toRadians(camera.yaw);
         camera.x += (float) (Math.cos(yaw) * side - Math.sin(yaw) * forward) * MOVE_STEP;
         camera.y += vertical * MOVE_STEP;
-        camera.z += (float) (Math.sin(yaw) * side - Math.cos(yaw) * forward) * MOVE_STEP;
+        camera.z += (float) (-Math.sin(yaw) * side - Math.cos(yaw) * forward) * MOVE_STEP;
         status = "Spectator camera position updated";
         rebuild();
     }
