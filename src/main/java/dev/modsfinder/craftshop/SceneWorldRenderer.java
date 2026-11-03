@@ -29,6 +29,7 @@ import javax.imageio.ImageIO;
 public final class SceneWorldRenderer {
     private static final double NEAR = 0.08D;
     private static final Map<ResourceManager, Map<net.minecraft.resources.Identifier, BufferedImage>> SPRITE_IMAGES = new WeakHashMap<>();
+    private static final Map<ResourceManager, Map<net.minecraft.resources.Identifier, List<CachedBlockQuad>>> BLOCK_MESHES = new WeakHashMap<>();
 
     private SceneWorldRenderer() {}
 
@@ -153,37 +154,59 @@ public final class SceneWorldRenderer {
             if (id == null) return false;
             Block block = BuiltInRegistries.BLOCK.getValue(id);
             if (block == null || block == net.minecraft.world.level.block.Blocks.AIR) return false;
-            BlockState state = block.defaultBlockState();
-            BlockStateModel model = minecraft.getModelManager().getBlockStateModelSet().get(state);
-            List<BlockStateModelPart> parts = new ArrayList<>();
-            model.collectParts(RandomSource.create(0x435241465453484FL), parts);
-            boolean rendered = false;
-            for (BlockStateModelPart part : parts) {
-                List<BakedQuad> quads = new ArrayList<>(part.getQuads(null));
-                for (Direction direction : Direction.values()) quads.addAll(part.getQuads(direction));
-                for (BakedQuad quad : quads) {
-                    Vec3[] vertices = new Vec3[4];
-                    float[][] uv = new float[4][2];
-                    for (int i = 0; i < 4; i++) {
-                        var p = quad.position(i);
-                        vertices[i] = transformModelVertex(p.x() - 0.5D, p.y() - 0.5D,
-                                p.z() - 0.5D, object.transform);
-                        long packedUv = quad.packedUV(i);
-                        uv[i][0] = Float.intBitsToFloat((int) packedUv);
-                        uv[i][1] = Float.intBitsToFloat((int) (packedUv >>> 32));
-                    }
-                    TextureAtlasSprite sprite = quad.materialInfo().sprite();
-                    int fallbackColor = shade(materialColor(object.assetId), quad.direction().ordinal());
-                    raster.texturedQuad(vertices[0], vertices[1], vertices[2], vertices[3],
-                            sprite, spriteImage(minecraft, sprite), uv,
-                            faceBrightness(quad.direction().ordinal()), fallbackColor, object.id);
-                    rendered = true;
+            List<CachedBlockQuad> mesh = cachedBlockMesh(minecraft, id, block.defaultBlockState(), object.assetId);
+            for (CachedBlockQuad quad : mesh) {
+                Vec3[] vertices = new Vec3[4];
+                for (int i = 0; i < 4; i++) {
+                    double[] position = quad.positions[i];
+                    vertices[i] = transformModelVertex(position[0], position[1], position[2], object.transform);
                 }
+                raster.texturedQuad(vertices[0], vertices[1], vertices[2], vertices[3],
+                        quad.sprite, quad.texture, quad.uv, quad.brightness, quad.fallbackColor, object.id);
             }
-            return rendered;
+            return !mesh.isEmpty();
         } catch (RuntimeException exception) {
             return false;
         }
+    }
+
+    private static List<CachedBlockQuad> cachedBlockMesh(Minecraft minecraft,
+            net.minecraft.resources.Identifier id, BlockState state, String assetId) {
+        ResourceManager manager = minecraft.getResourceManager();
+        synchronized (BLOCK_MESHES) {
+            Map<net.minecraft.resources.Identifier, List<CachedBlockQuad>> cache =
+                    BLOCK_MESHES.computeIfAbsent(manager, ignored -> new HashMap<>());
+            return cache.computeIfAbsent(id, ignored -> buildBlockMesh(minecraft, state, assetId));
+        }
+    }
+
+    private static List<CachedBlockQuad> buildBlockMesh(Minecraft minecraft, BlockState state, String assetId) {
+        BlockStateModel model = minecraft.getModelManager().getBlockStateModelSet().get(state);
+        List<BlockStateModelPart> parts = new ArrayList<>();
+        model.collectParts(RandomSource.create(0x435241465453484FL), parts);
+        List<CachedBlockQuad> mesh = new ArrayList<>();
+        for (BlockStateModelPart part : parts) {
+            List<BakedQuad> quads = new ArrayList<>(part.getQuads(null));
+            for (Direction direction : Direction.values()) quads.addAll(part.getQuads(direction));
+            for (BakedQuad quad : quads) {
+                double[][] positions = new double[4][3];
+                float[][] uv = new float[4][2];
+                for (int i = 0; i < 4; i++) {
+                    var position = quad.position(i);
+                    positions[i][0] = position.x() - 0.5D;
+                    positions[i][1] = position.y() - 0.5D;
+                    positions[i][2] = position.z() - 0.5D;
+                    long packedUv = quad.packedUV(i);
+                    uv[i][0] = Float.intBitsToFloat((int) packedUv);
+                    uv[i][1] = Float.intBitsToFloat((int) (packedUv >>> 32));
+                }
+                TextureAtlasSprite sprite = quad.materialInfo().sprite();
+                mesh.add(new CachedBlockQuad(positions, uv, sprite, spriteImage(minecraft, sprite),
+                        faceBrightness(quad.direction().ordinal()),
+                        shade(materialColor(assetId), quad.direction().ordinal())));
+            }
+        }
+        return List.copyOf(mesh);
     }
 
     private static BufferedImage spriteImage(Minecraft minecraft, TextureAtlasSprite sprite) {
@@ -666,6 +689,9 @@ public final class SceneWorldRenderer {
             return maxX < minX ? null : new Bounds(minX, minY, maxX, maxY);
         }
     }
+    private record CachedBlockQuad(double[][] positions, float[][] uv,
+                                   TextureAtlasSprite sprite, BufferedImage texture,
+                                   float brightness, int fallbackColor) {}
     private record ScreenPoint(double x,double y,double z) {}
     private record TexturedPoint(CameraPoint position, float u, float v) {}
 }
