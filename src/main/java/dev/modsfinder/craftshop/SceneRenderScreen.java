@@ -3,6 +3,8 @@ package dev.modsfinder.craftshop;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 
@@ -14,14 +16,20 @@ import java.util.List;
 public final class SceneRenderScreen extends Screen {
     private final SceneProject project;
     private final Path imagePath;
+    private final Screen parent;
     private int imageWidth = 1;
     private int imageHeight = 1;
     private String error = "";
 
     public SceneRenderScreen(SceneProject project, Path imagePath) {
-        super(Component.literal("CraftShop PNG Render"));
+        this(project, imagePath, null);
+    }
+
+    public SceneRenderScreen(SceneProject project, Path imagePath, Screen parent) {
+        super(Component.literal(parent == null ? "CraftShop PNG Render" : "CraftShop Scene Preview"));
         this.project = project;
         this.imagePath = imagePath;
+        this.parent = parent;
         try {
             var image = javax.imageio.ImageIO.read(imagePath.toFile());
             if (image == null) throw new java.io.IOException("PNG could not be decoded");
@@ -131,12 +139,81 @@ public final class SceneRenderScreen extends Screen {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.level == null) {
             graphics.centeredText(font, Component.literal("A loaded Minecraft world is required to render entity models"),
-                    width / 2, height - 16, 0xFFFF5555);
+                    width / 2, height - 42, 0xFFFF5555);
+            drawPreviewHelp(graphics);
             return;
         }
         for (ProjectedObject object : projectObjects(bounds)) {
             SceneAssetRenderer.extract(graphics, object.object(), minecraft,
                     object.x(), object.y(), object.halfSize());
+        }
+        drawPreviewHelp(graphics);
+    }
+
+    private void drawPreviewHelp(GuiGraphicsExtractor graphics) {
+        if (parent == null) return;
+        graphics.fill(8, height - 31, width - 8, height - 8, 0xAA10151D);
+        graphics.text(font, "DRAG: Look  •  WASD: Move  •  SPACE/C: Rise/Lower  •  Scroll: Zoom  •  ESC: Back",
+                14, height - 22, 0xFFFFFFFF, false);
+    }
+
+    private void moveCamera(float side, float vertical, float forward) {
+        if (project.camera == null) project.camera = new SceneProject.Camera();
+        SceneProject.Camera camera = project.camera;
+        double yaw = Math.toRadians(camera.yaw);
+        camera.x += (float) (Math.cos(yaw) * side - Math.sin(yaw) * forward) * 0.35F;
+        camera.y += vertical * 0.35F;
+        camera.z += (float) (-Math.sin(yaw) * side - Math.cos(yaw) * forward) * 0.35F;
+    }
+
+    private void rotateCamera(float yaw, float pitch) {
+        if (project.camera == null) project.camera = new SceneProject.Camera();
+        project.camera.yaw += yaw;
+        project.camera.pitch = Math.max(-89.0F, Math.min(89.0F, project.camera.pitch + pitch));
+    }
+
+    @Override
+    public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) {
+        if (parent == null) return super.mouseDragged(event, deltaX, deltaY);
+        rotateCamera((float) (deltaX * 0.45F), (float) (deltaY * 0.45F));
+        return true;
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (parent == null) return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        if (project.camera == null) project.camera = new SceneProject.Camera();
+        project.camera.zoom = Math.max(0.2F, Math.min(4.0F,
+                project.camera.zoom + (float) scrollY * 0.1F));
+        return true;
+    }
+
+    @Override
+    public boolean keyPressed(KeyEvent event) {
+        if (parent != null) {
+            int key = event.input();
+            switch (key) {
+                case 'w' -> moveCamera(0.0F, 0.0F, 1.0F);
+                case 's' -> moveCamera(0.0F, 0.0F, -1.0F);
+                case 'a' -> moveCamera(-1.0F, 0.0F, 0.0F);
+                case 'd' -> moveCamera(1.0F, 0.0F, 0.0F);
+                case ' ' -> moveCamera(0.0F, 1.0F, 0.0F);
+                case 'c' -> moveCamera(0.0F, -1.0F, 0.0F);
+                default -> {
+                    return super.keyPressed(event);
+                }
+            }
+            return true;
+        }
+        return super.keyPressed(event);
+    }
+
+    @Override
+    public void onClose() {
+        if (parent != null) {
+            minecraft.gui.setScreen(parent);
+        } else {
+            super.onClose();
         }
     }
 
