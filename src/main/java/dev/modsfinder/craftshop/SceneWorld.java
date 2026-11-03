@@ -134,10 +134,36 @@ public final class SceneWorld {
         List<SceneProject.SceneObject> visible = new ArrayList<>();
         for (SceneChunk chunk : ordered) {
             for (SceneProject.SceneObject object : chunk.objects.values()) {
-                if (object.visible) visible.add(object);
+                if (object.visible && insideCameraFrustum(object, camera)) visible.add(object);
             }
         }
         return visible;
+    }
+
+    private static boolean insideCameraFrustum(SceneProject.SceneObject object,
+                                                SceneProject.Camera camera) {
+        if (camera == null || object.transform == null) return true;
+        double yaw = Math.toRadians(camera.yaw);
+        double pitch = Math.toRadians(camera.pitch);
+        double sinYaw = Math.sin(yaw), cosYaw = Math.cos(yaw);
+        double sinPitch = Math.sin(pitch), cosPitch = Math.cos(pitch);
+        double dx = object.transform.x - camera.x;
+        double dy = object.transform.y - camera.y;
+        double dz = object.transform.z - camera.z;
+
+        double forward = dx * (-sinYaw * cosPitch)
+                + dy * (-sinPitch) + dz * (-cosYaw * cosPitch);
+        if (forward < -2.0D) return false;
+
+        double right = dx * cosYaw - dz * sinYaw;
+        double up = dx * (-sinYaw * sinPitch)
+                + dy * cosPitch + dz * (-cosYaw * sinPitch);
+        double scale = Math.max(0.05D, Math.max(object.transform.scaleX,
+                Math.max(object.transform.scaleY, object.transform.scaleZ)));
+        double radius = Math.min(32.0D, scale * 1.8D + 0.9D);
+        double horizontalLimit = Math.max(4.0D, forward * 1.55D + radius);
+        double verticalLimit = Math.max(4.0D, forward * 1.55D + radius);
+        return Math.abs(right) <= horizontalLimit && Math.abs(up) <= verticalLimit;
     }
 
     public int chunkCount() {
