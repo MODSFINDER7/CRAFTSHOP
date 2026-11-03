@@ -130,6 +130,23 @@ public final class SceneWorldRenderer {
         return frame.objectIds[y * frame.width + x];
     }
 
+    public static boolean hasVisiblePixels(Frame frame, String objectId) {
+        if (frame == null || objectId == null || objectId.isBlank()) return false;
+        Bounds bounds = frame.bounds.get(objectId);
+        if (bounds == null) return false;
+        int minX = Math.max(0, bounds.minX);
+        int minY = Math.max(0, bounds.minY);
+        int maxX = Math.min(frame.width - 1, bounds.maxX);
+        int maxY = Math.min(frame.height - 1, bounds.maxY);
+        for (int y = minY; y <= maxY; y++) {
+            int offset = y * frame.width;
+            for (int x = minX; x <= maxX; x++) {
+                if (objectId.equals(frame.objectIds[offset + x])) return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean renderBakedBlockModel(Raster raster, SceneProject.SceneObject object,
                                                    Minecraft minecraft, int[] ignoredBounds) {
         try {
