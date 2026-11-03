@@ -64,6 +64,6 @@ The standalone CPU preview has its own colour and depth buffers, perspective pro
 
 GitHub Actions uses Java 25 and Gradle 9.5.1. It runs `gradle --no-daemon clean test build` before uploading the mod JAR.
 
-The JUnit suite currently covers the project-owned scene index: 16-block chunk and vertical-section addressing, negative coordinates, block/entity classification, null-entry handling, hidden-object filtering, camera-facing culling, cache reuse, and cache invalidation when objects cross chunk boundaries or the project collection changes.
+The JUnit suite covers the project-owned scene index and project-data recovery: 16-block chunk and vertical-section addressing, negative coordinates, block/entity classification, null-entry handling, hidden-object filtering, horizontal camera-frustum culling, back-to-front camera-depth ordering for translucent compositing, cache reuse and invalidation, duplicate object-ID repair, missing-field recovery, finite-value validation, camera/transform clamping, and selected-object reference validation.
 
 Automated tests and a successful build do not replace launching the mod in Minecraft Java 26.2 with Fabric. Runtime interaction, resource reloads, large-scene performance, and visual correctness still require in-game verification.
