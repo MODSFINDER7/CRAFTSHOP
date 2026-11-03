@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Project-owned scene world. It has its own chunk index and object storage view;
@@ -16,6 +17,7 @@ public final class SceneWorld {
     public static final int CHUNK_SIZE = 16;
     public static final int SECTION_HEIGHT = 16;
     private static final int MAX_RENDER_CHUNK_DISTANCE = 64;
+    private static final Map<SceneProject, CacheEntry> CACHE = new WeakHashMap<>();
 
     private final Map<ChunkPos, SceneChunk> chunks;
     private final List<SceneProject.SceneObject> objects;
@@ -27,23 +29,80 @@ public final class SceneWorld {
     }
 
     public static SceneWorld from(SceneProject project) {
-        Map<ChunkPos, SceneChunk> chunks = new LinkedHashMap<>();
-        List<SceneProject.SceneObject> objects = new ArrayList<>();
         if (project == null || project.objects == null) {
-            return new SceneWorld(chunks, objects);
+            return new SceneWorld(Map.of(), List.of());
+        }
+        synchronized (CACHE) {
+            CacheEntry cached = CACHE.get(project);
+            if (cached != null && cached.matches(project.objects)) return cached.world;
+
+            Map<ChunkPos, SceneChunk> chunks = new LinkedHashMap<>();
+            List<SceneProject.SceneObject> objects = new ArrayList<>();
+            for (SceneProject.SceneObject object : project.objects) {
+                if (object == null || object.transform == null) continue;
+                objects.add(object);
+                ChunkPos position = new ChunkPos(
+                        floorChunk(object.transform.x),
+                        floorChunk(object.transform.y),
+                        floorChunk(object.transform.z));
+                chunks.computeIfAbsent(position, SceneChunk::new).add(object);
+            }
+            SceneWorld world = new SceneWorld(chunks, objects);
+            CACHE.put(project, new CacheEntry(world, objects));
+            return world;
+        }
+    }
+
+    /** Drops the cached chunk index when a project is explicitly discarded. */
+    public static void invalidate(SceneProject project) {
+        if (project == null) return;
+        synchronized (CACHE) {
+            CACHE.remove(project);
+        }
+    }
+
+    private static final class CacheEntry {
+        private final SceneWorld world;
+        private final SceneProject.SceneObject[] objects;
+        private final String[] ids;
+        private final String[] kinds;
+        private final int[] chunkX;
+        private final int[] sectionY;
+        private final int[] chunkZ;
+
+        private CacheEntry(SceneWorld world, List<SceneProject.SceneObject> source) {
+            this.world = world;
+            int size = source.size();
+            objects = source.toArray(SceneProject.SceneObject[]::new);
+            ids = new String[size];
+            kinds = new String[size];
+            chunkX = new int[size];
+            sectionY = new int[size];
+            chunkZ = new int[size];
+            for (int i = 0; i < size; i++) {
+                SceneProject.SceneObject object = objects[i];
+                ids[i] = object.id;
+                kinds[i] = object.kind;
+                chunkX[i] = floorChunk(object.transform.x);
+                sectionY[i] = floorChunk(object.transform.y);
+                chunkZ[i] = floorChunk(object.transform.z);
+            }
         }
 
-        for (SceneProject.SceneObject object : project.objects) {
-            if (object == null || object.transform == null) continue;
-            objects.add(object);
-            int chunkX = floorChunk(object.transform.x);
-            int chunkZ = floorChunk(object.transform.z);
-            int sectionY = floorChunk(object.transform.y);
-            ChunkPos position = new ChunkPos(chunkX, sectionY, chunkZ);
-            SceneChunk chunk = chunks.computeIfAbsent(position, SceneChunk::new);
-            chunk.add(object);
+        private boolean matches(List<SceneProject.SceneObject> source) {
+            int index = 0;
+            for (SceneProject.SceneObject object : source) {
+                if (object == null || object.transform == null) continue;
+                if (index >= objects.length || objects[index] != object
+                        || !java.util.Objects.equals(ids[index], object.id)
+                        || !java.util.Objects.equals(kinds[index], object.kind)
+                        || chunkX[index] != floorChunk(object.transform.x)
+                        || sectionY[index] != floorChunk(object.transform.y)
+                        || chunkZ[index] != floorChunk(object.transform.z)) return false;
+                index++;
+            }
+            return index == objects.length;
         }
-        return new SceneWorld(chunks, objects);
     }
 
     /**
