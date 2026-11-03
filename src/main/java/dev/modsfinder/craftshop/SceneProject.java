@@ -10,6 +10,7 @@ public final class SceneProject {
     public String renderedImage = "";
     public String selectedObjectId = "";
     public String name = "Untitled Scene";
+    public boolean ambientOcclusion = true;
     public Camera camera = new Camera();
     public List<SceneObject> objects = new ArrayList<>();
 
