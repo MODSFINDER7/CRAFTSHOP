@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.RandomSource;
@@ -140,13 +141,18 @@ public final class SceneWorldRenderer {
                 for (Direction direction : Direction.values()) quads.addAll(part.getQuads(direction));
                 for (BakedQuad quad : quads) {
                     Vec3[] vertices = new Vec3[4];
+                    float[][] uv = new float[4][2];
                     for (int i = 0; i < 4; i++) {
                         var p = quad.position(i);
                         vertices[i] = transformModelVertex(p.x() - 0.5D, p.y() - 0.5D,
                                 p.z() - 0.5D, object.transform);
+                        long packedUv = quad.packedUV(i);
+                        uv[i][0] = Float.intBitsToFloat((int) packedUv);
+                        uv[i][1] = Float.intBitsToFloat((int) (packedUv >>> 32));
                     }
-                    int color = shade(materialColor(object.assetId), quad.direction().ordinal());
-                    raster.quad(vertices[0], vertices[1], vertices[2], vertices[3], color, object.id);
+                    TextureAtlasSprite sprite = quad.materialInfo().sprite();
+                    raster.texturedQuad(vertices[0], vertices[1], vertices[2], vertices[3],
+                            sprite, uv, faceBrightness(quad.direction().ordinal()), object.id);
                     rendered = true;
                 }
             }
@@ -314,6 +320,18 @@ public final class SceneWorldRenderer {
         return 0xFF8C9AA7;
     }
 
+    private static float faceBrightness(int face) {
+        return switch (face) {
+            case 0 -> 0.52F;
+            case 1 -> 1.0F;
+            case 2 -> 0.70F;
+            case 3 -> 0.88F;
+            case 4 -> 0.96F;
+            case 5 -> 0.62F;
+            default -> 0.82F;
+        };
+    }
+
     private static int shade(int color, int face) {
         double[] factors = {0.78, 0.62, 0.70, 0.88, 1.0, 0.52};
         double factor = factors[face % factors.length];
@@ -362,6 +380,63 @@ public final class SceneWorldRenderer {
             this.width = width; this.height = height; this.pixels = pixels; this.depth = depth;
             this.objectIds = objectIds; this.camera = camera;
             this.focal = Math.min(width, height) * 0.92 * camera.zoom;
+        }
+        void texturedQuad(Vec3 a, Vec3 b, Vec3 c, Vec3 d, TextureAtlasSprite sprite,
+                          float[][] uv, float brightness, String objectId) {
+            CameraPoint ca = camera.transform(a), cb = camera.transform(b);
+            CameraPoint cc = camera.transform(c), cd = camera.transform(d);
+            if (ca.z <= NEAR || cb.z <= NEAR || cc.z <= NEAR || cd.z <= NEAR || sprite == null) {
+                int fallback = shade(0xFF8C9AA7, 0);
+                quad(a, b, c, d, fallback, objectId);
+                return;
+            }
+            ScreenPoint sa = project(ca), sb = project(cb), sc = project(cc), sd = project(cd);
+            texturedTriangle(sa, sb, sc, uv[0], uv[1], uv[2], sprite, brightness, objectId);
+            texturedTriangle(sa, sc, sd, uv[0], uv[2], uv[3], sprite, brightness, objectId);
+        }
+        void texturedTriangle(ScreenPoint a, ScreenPoint b, ScreenPoint c,
+                              float[] uvA, float[] uvB, float[] uvC,
+                              TextureAtlasSprite sprite, float brightness, String objectId) {
+            double area = edge(a.x,a.y,b.x,b.y,c.x,c.y);
+            if (Math.abs(area) < 0.0001) return;
+            int minX = clamp((int)Math.floor(Math.min(a.x,Math.min(b.x,c.x))),0,width-1);
+            int maxX = clamp((int)Math.ceil(Math.max(a.x,Math.max(b.x,c.x))),0,width-1);
+            int minY = clamp((int)Math.floor(Math.min(a.y,Math.min(b.y,c.y))),0,height-1);
+            int maxY = clamp((int)Math.ceil(Math.max(a.y,Math.max(b.y,c.y))),0,height-1);
+            int spriteWidth = Math.max(1, sprite.contents().width());
+            int spriteHeight = Math.max(1, sprite.contents().height());
+            float uRange = sprite.getU1() - sprite.getU0();
+            float vRange = sprite.getV1() - sprite.getV0();
+            for (int y = minY; y <= maxY; y++) for (int x = minX; x <= maxX; x++) {
+                double px = x + 0.5, py = y + 0.5;
+                double wa = edge(b.x,b.y,c.x,c.y,px,py) / area;
+                double wb = edge(c.x,c.y,a.x,a.y,px,py) / area;
+                double wc = 1.0 - wa - wb;
+                if (wa < -0.0001 || wb < -0.0001 || wc < -0.0001) continue;
+                double reciprocalDepth = wa / a.z + wb / b.z + wc / c.z;
+                double z = 1.0 / reciprocalDepth;
+                int index = y * width + x;
+                if (z >= depth[index]) continue;
+                double u = (wa * uvA[0] / a.z + wb * uvB[0] / b.z + wc * uvC[0] / c.z) / reciprocalDepth;
+                double v = (wa * uvA[1] / a.z + wb * uvB[1] / b.z + wc * uvC[1] / c.z) / reciprocalDepth;
+                double localU = uRange == 0.0F ? 0.0D : (u - sprite.getU0()) / uRange;
+                double localV = vRange == 0.0F ? 0.0D : (v - sprite.getV0()) / vRange;
+                int tx = clamp((int) (Math.max(0.0D, Math.min(0.999999D, localU)) * spriteWidth), 0, spriteWidth - 1);
+                int ty = clamp((int) (Math.max(0.0D, Math.min(0.999999D, localV)) * spriteHeight), 0, spriteHeight - 1);
+                int sample = sprite.getPixelRGBA(0, tx, ty);
+                int alpha = (sample >>> 24) & 255;
+                if (alpha < 8) continue;
+                int red = sample & 255;
+                int green = (sample >>> 8) & 255;
+                int blue = (sample >>> 16) & 255;
+                red = clamp((int) (red * brightness), 0, 255);
+                green = clamp((int) (green * brightness), 0, 255);
+                blue = clamp((int) (blue * brightness), 0, 255);
+                pixels[index] = (alpha << 24) | (red << 16) | (green << 8) | blue;
+                depth[index] = z;
+                objectIds[index] = objectId;
+                trackedBounds.computeIfAbsent(objectId, ignored -> new MutableBounds()).include(x, y);
+            }
         }
         Bounds quad(Vec3 a, Vec3 b, Vec3 c, Vec3 d, int color, String objectId) {
             CameraPoint ca = camera.transform(a), cb = camera.transform(b), cc = camera.transform(c), cd = camera.transform(d);
