@@ -135,6 +135,33 @@ class SceneWorldTest {
         assertEquals(1, second.entityCount());
     }
 
+
+    @Test
+    void sortsTranslucentSceneObjectsByCameraDepthRatherThanRadialDistance() {
+        project = new SceneProject();
+        SceneProject.SceneObject deeper = object("deeper", "minecraft_block", 0, 0, -5);
+        SceneProject.SceneObject nearerButOffset = object("offset", "minecraft_block", 4, 0, -4);
+        project.objects.add(nearerButOffset);
+        project.objects.add(deeper);
+
+        List<SceneProject.SceneObject> rendered = SceneWorld.from(project).renderObjects(cameraAtOrigin());
+
+        assertEquals(List.of(deeper, nearerButOffset), rendered);
+    }
+
+    @Test
+    void excludesObjectsFarOutsideTheHorizontalCameraFrustum() {
+        project = new SceneProject();
+        SceneProject.SceneObject centered = object("centered", "minecraft_block", 0, 0, -5);
+        SceneProject.SceneObject outside = object("outside", "minecraft_block", 100, 0, -5);
+        project.objects.add(centered);
+        project.objects.add(outside);
+
+        List<SceneProject.SceneObject> rendered = SceneWorld.from(project).renderObjects(cameraAtOrigin());
+
+        assertEquals(List.of(centered), rendered);
+    }
+
     private static SceneProject.Camera cameraAtOrigin() {
         SceneProject.Camera camera = new SceneProject.Camera();
         camera.x = 0;
