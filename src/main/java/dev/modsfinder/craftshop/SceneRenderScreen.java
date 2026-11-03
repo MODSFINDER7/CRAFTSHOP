@@ -371,6 +371,7 @@ public final class SceneRenderScreen extends Screen {
 
     @Override
     public void onClose() {
+        SceneAssetRenderer.clear();
         if (parent != null) {
             try {
                 ProjectManager.save(project);
