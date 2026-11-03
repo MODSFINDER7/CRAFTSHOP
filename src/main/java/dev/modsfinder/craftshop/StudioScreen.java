@@ -195,35 +195,46 @@ public final class StudioScreen extends Screen {
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractBackground(graphics, mouseX, mouseY, delta);
-        graphics.fill(0, 0, this.width, this.height, 0xFF101319);
-        graphics.fill(8, 8, this.width - 8, 36, 0xFF1D232D);
-        graphics.fill(leftX(), panelTop(), leftX() + leftWidth(), panelBottom(), 0xFF202630);
-        graphics.fill(middleX(), panelTop(), middleX() + middleWidth(), panelBottom(), 0xFF171E28);
-        graphics.fill(rightX(), panelTop(), this.width - 12, panelBottom(), 0xFF202630);
-        graphics.outline(leftX(), panelTop(), leftWidth(), panelBottom() - panelTop(), 0xFF394655);
-        graphics.outline(middleX(), panelTop(), middleWidth(), panelBottom() - panelTop(), 0xFF394655);
+        graphics.fill(0, 0, this.width, this.height, 0xFF090D13);
+        graphics.fill(0, 0, this.width, 3, 0xFF36C8D9);
+        graphics.fill(8, 8, this.width - 8, 38, 0xFF151E2A);
+        graphics.fill(8, 39, this.width - 8, 62, 0xFF101720);
+        graphics.fill(leftX(), panelTop(), leftX() + leftWidth(), panelBottom(), 0xFF151E29);
+        graphics.fill(middleX(), panelTop(), middleX() + middleWidth(), panelBottom(), 0xFF111923);
+        graphics.fill(rightX(), panelTop(), this.width - 12, panelBottom(), 0xFF151E29);
+        graphics.fill(leftX(), panelTop(), leftX() + leftWidth(), panelTop() + 2, 0xFF36C8D9);
+        graphics.fill(middleX(), panelTop(), middleX() + middleWidth(), panelTop() + 2, 0xFF8C78E8);
+        graphics.fill(rightX(), panelTop(), this.width - 12, panelTop() + 2, 0xFF36C8D9);
+        graphics.outline(leftX(), panelTop(), leftWidth(), panelBottom() - panelTop(), 0xFF2D3B4B);
+        graphics.outline(middleX(), panelTop(), middleWidth(), panelBottom() - panelTop(), 0xFF2D3B4B);
         graphics.outline(rightX(), panelTop(), this.width - rightX() - 12,
-                panelBottom() - panelTop(), 0xFF394655);
+                panelBottom() - panelTop(), 0xFF2D3B4B);
+        graphics.fill(8, this.height - 23, this.width - 8, this.height - 8, 0xFF101720);
+        graphics.fill(8, this.height - 23, this.width - 8, this.height - 22, 0xFF26384A);
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
-        graphics.text(this.font, "CRAFTSHOP  /  3D SCENE TOOLS", 14, 48, 0xFF55DDEE, true);
+        graphics.text(this.font, "CRAFTSHOP", 16, 18, 0xFFECF7FF, true);
+        graphics.text(this.font, "CREATIVE SCENE STUDIO", 112, 19, 0xFF6F879C, false);
+        graphics.text(this.font, "3D WORKSPACE", 16, 49, 0xFF55DDEE, true);
         String pngLabel = "No PNG selected";
         if (project.canvasImage != null && !project.canvasImage.isBlank()) {
             int separator = Math.max(project.canvasImage.lastIndexOf('/'), project.canvasImage.lastIndexOf('\\'));
             pngLabel = separator >= 0 ? project.canvasImage.substring(separator + 1) : project.canvasImage;
         }
-        graphics.text(this.font, "PNG: " + trim(pngLabel, 28), 14, 58, 0xFF9AA8B8, false);
+        graphics.text(this.font, "SOURCE  /  " + trim(pngLabel, 30), 16, 59, 0xFF9AA8B8, false);
         graphics.text(this.font, trim(status, 54),
                 Math.max(180, this.width - this.font.width(trim(status, 54)) - 14), 48,
                 0xFF9DDDAA, false);
 
-        graphics.text(this.font, "SPAWN", leftX() + 10, 82, 0xFF55DDEE, true);
-        graphics.text(this.font, "SPECTATOR CAMERA", leftX() + 10, 204, 0xFF9AA8B8, false);
+        graphics.text(this.font, "01  /  ADD TO SCENE", leftX() + 10, 83, 0xFF55DDEE, true);
+        graphics.text(this.font, "CAMERA CONTROLS", leftX() + 10, 204, 0xFF9AA8B8, true);
+        graphics.fill(leftX() + 10, 218, leftX() + leftWidth() - 10, 219, 0xFF344354);
 
-        graphics.text(this.font, "SELECTED OBJECT", middleX() + 10, 82, 0xFF55DDEE, true);
+        graphics.text(this.font, "02  /  TRANSFORM", middleX() + 10, 83, 0xFFB8A7FF, true);
+        graphics.fill(middleX() + 10, 126, middleX() + middleWidth() - 10, 127, 0xFF344354);
         SceneProject.SceneObject selected = selectedObject();
         if (selected == null) {
             graphics.text(this.font, "Select an object from the list.", middleX() + 10, 102,
@@ -247,17 +258,25 @@ public final class StudioScreen extends Screen {
         graphics.text(this.font, "HISTORY", middleX() + 10, 356,
                 0xFF9AA8B8, false);
 
-        graphics.text(this.font, "SCENE OBJECTS  (" + project.objects.size() + ")",
-                rightX() + 10, 82, 0xFF55DDEE, true);
+        graphics.text(this.font, "03  /  HIERARCHY", rightX() + 10, 83, 0xFF55DDEE, true);
+        graphics.text(this.font, project.objects.size() + " ITEMS",
+                this.width - 74, 83, 0xFF8296AA, false);
+        graphics.fill(rightX() + 10, 94, this.width - 22, 95, 0xFF344354);
         if (project.objects.isEmpty()) {
-            graphics.text(this.font, "No objects yet.", rightX() + 10, 108, 0xFF8995A4, false);
-            graphics.text(this.font, "Use Place Block or Spawn Mob.", rightX() + 10, 124,
-                    0xFF68798B, false);
+            graphics.fill(rightX() + 12, 112, this.width - 24, 176, 0xFF101923);
+            graphics.outline(rightX() + 12, 112, this.width - rightX() - 36, 64, 0xFF2D3B4B);
+            graphics.text(this.font, "SCENE IS EMPTY", rightX() + 22, 128, 0xFFE6F1FA, true);
+            graphics.text(this.font, "Add a block, mob or cube", rightX() + 22, 147,
+                    0xFF8296AA, false);
+            graphics.text(this.font, "using the tools on the left.", rightX() + 22, 160,
+                    0xFF8296AA, false);
         }
-        graphics.fill(0, this.height - 8, this.width, this.height, 0xFF0B0E13);
-        graphics.text(this.font, "CRAFTSHOP  •  " + project.name + "  •  "
-                + project.objects.size() + " objects  •  .craftshop project",
-                10, this.height - 7, 0xFF7F8D9C, false);
+        graphics.text(this.font, "PROJECT  /  " + trim(project.name, 34),
+                16, this.height - 13, 0xFF91A5B9, false);
+        graphics.text(this.font, "CTRL+Z UNDO     CTRL+Y REDO     CTRL+D DUPLICATE",
+                Math.max(250, this.width / 2 - 105), this.height - 13, 0xFF62788E, false);
+        graphics.text(this.font, "CRAFTSHOP  •  " + project.objects.size() + " OBJECTS",
+                this.width - 150, this.height - 13, 0xFF55DDEE, true);
     }
 
     private static String trim(String value, int maximum) {
