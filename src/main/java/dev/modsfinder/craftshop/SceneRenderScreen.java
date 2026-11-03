@@ -153,8 +153,37 @@ public final class SceneRenderScreen extends Screen {
     private void drawPreviewHelp(GuiGraphicsExtractor graphics) {
         if (parent == null) return;
         graphics.fill(8, height - 31, width - 8, height - 8, 0xAA10151D);
-        graphics.text(font, "DRAG: Look  •  WASD: Move  •  SPACE/C: Rise/Lower  •  Scroll: Zoom  •  ESC: Back",
+        graphics.text(font, "DRAG: Look  •  WASD: Move  •  SPACE/SHIFT: Rise/Lower  •  SPRINT: Fast  •  Scroll: Zoom  •  ESC: Back",
                 14, height - 22, 0xFFFFFFFF, false);
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (parent == null || minecraft == null) return;
+
+        var options = minecraft.options;
+        float side = (options.keyRight.isDown() ? 1.0F : 0.0F)
+                - (options.keyLeft.isDown() ? 1.0F : 0.0F);
+        float forward = (options.keyUp.isDown() ? 1.0F : 0.0F)
+                - (options.keyDown.isDown() ? 1.0F : 0.0F);
+        float vertical = (options.keyJump.isDown() ? 1.0F : 0.0F)
+                - (options.keyShift.isDown() ? 1.0F : 0.0F);
+
+        float horizontalLength = (float) Math.sqrt(side * side + forward * forward);
+        if (horizontalLength > 1.0F) {
+            side /= horizontalLength;
+            forward /= horizontalLength;
+        }
+        if (side == 0.0F && forward == 0.0F && vertical == 0.0F) return;
+
+        float speed = options.keySprint.isDown() ? 0.70F : 0.22F;
+        if (project.camera == null) project.camera = new SceneProject.Camera();
+        SceneProject.Camera camera = project.camera;
+        double yaw = Math.toRadians(camera.yaw);
+        camera.x += (float) (Math.cos(yaw) * side - Math.sin(yaw) * forward) * speed;
+        camera.y += vertical * speed;
+        camera.z += (float) (-Math.sin(yaw) * side - Math.cos(yaw) * forward) * speed;
     }
 
     private void moveCamera(float side, float vertical, float forward) {
@@ -190,27 +219,17 @@ public final class SceneRenderScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        if (parent != null) {
-            int key = event.input();
-            switch (key) {
-                case 'w' -> moveCamera(0.0F, 0.0F, 1.0F);
-                case 's' -> moveCamera(0.0F, 0.0F, -1.0F);
-                case 'a' -> moveCamera(-1.0F, 0.0F, 0.0F);
-                case 'd' -> moveCamera(1.0F, 0.0F, 0.0F);
-                case ' ' -> moveCamera(0.0F, 1.0F, 0.0F);
-                case 'c' -> moveCamera(0.0F, -1.0F, 0.0F);
-                default -> {
-                    return super.keyPressed(event);
-                }
-            }
-            return true;
-        }
         return super.keyPressed(event);
     }
 
     @Override
     public void onClose() {
         if (parent != null) {
+            try {
+                ProjectManager.save(project);
+            } catch (java.io.IOException exception) {
+                CraftShop.LOGGER.error("Could not save scene camera after preview", exception);
+            }
             minecraft.gui.setScreen(parent);
         } else {
             super.onClose();
