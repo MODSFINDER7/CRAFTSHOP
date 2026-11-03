@@ -28,8 +28,8 @@ public final class SceneExporter {
             completion.accept("A PNG render is already running");
             return;
         }
-        if (minecraft == null || minecraft.gameRenderer == null || minecraft.level == null) {
-            completion.accept("Open a Minecraft world before rendering");
+        if (minecraft == null || minecraft.gameRenderer == null) {
+            completion.accept("Minecraft renderer is not ready");
             return;
         }
 
@@ -79,7 +79,6 @@ public final class SceneExporter {
             }
             String message = result;
             minecraft.execute(() -> {
-                SceneAssetRenderer.clear();
                 minecraft.gui.setScreen(current.returnScreen);
                 current.completion.accept(message);
             });

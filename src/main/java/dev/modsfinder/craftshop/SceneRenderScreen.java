@@ -21,6 +21,7 @@ public final class SceneRenderScreen extends Screen {
     private int imageWidth = 1;
     private int imageHeight = 1;
     private String error = "";
+    private SceneWorldRenderer.Frame sceneFrame;
 
     public SceneRenderScreen(SceneProject project, Path imagePath) {
         this(project, imagePath, null);
@@ -137,24 +138,8 @@ public final class SceneRenderScreen extends Screen {
         graphics.blit(RenderPipelines.GUI_TEXTURED, texture.id(), bounds.x(), bounds.y(), 0.0F, 0.0F,
                 bounds.width(), bounds.height(), texture.width(), texture.height());
 
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.level == null) {
-            graphics.centeredText(font, Component.literal("A loaded Minecraft world is required to render entity models"),
-                    width / 2, height - 42, 0xFFFF5555);
-            drawPreviewHelp(graphics);
-            return;
-        }
-        for (ProjectedObject object : projectObjects(bounds)) {
-            SceneAssetRenderer.extract(graphics, object.object(), minecraft,
-                    object.x(), object.y(), object.halfSize());
-            if (object.object().id.equals(project.selectedObjectId)) {
-                int outlineSize = Math.max(8, object.halfSize() + 5);
-                graphics.outline(object.x() - outlineSize, object.y() - outlineSize,
-                        outlineSize * 2, outlineSize * 2, 0xFF43E8F5);
-                graphics.fill(object.x() - 2, object.y() - outlineSize - 5,
-                        object.x() + 3, object.y() - outlineSize, 0xFF43E8F5);
-            }
-        }
+        sceneFrame = SceneWorldRenderer.render(project, 256, 160);
+        SceneWorldRenderer.draw(graphics, sceneFrame, bounds.x(), bounds.y(), bounds.width(), bounds.height());
         drawPreviewHelp(graphics);
     }
 
@@ -210,27 +195,19 @@ public final class SceneRenderScreen extends Screen {
     }
 
     @Override
+    @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (parent == null || event.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !isReady()) {
+        if (event.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !isReady()) {
             return super.mouseClicked(event, doubleClick);
         }
         CanvasBounds bounds = canvasBounds(width, height, imageWidth, imageHeight);
-        List<ProjectedObject> projected = projectObjects(bounds);
-        ProjectedObject hit = null;
-        double bestDistance = Double.MAX_VALUE;
-        for (int i = projected.size() - 1; i >= 0; i--) {
-            ProjectedObject candidate = projected.get(i);
-            double dx = event.x() - candidate.x();
-            double dy = event.y() - candidate.y();
-            double radius = Math.max(10.0, candidate.halfSize() + 7.0);
-            double distance = dx * dx + dy * dy;
-            if (distance <= radius * radius && distance < bestDistance) {
-                hit = candidate;
-                bestDistance = distance;
-            }
-        }
-        if (hit != null) {
-            project.selectedObjectId = hit.object().id;
+        if (event.x() >= bounds.x() && event.x() <= bounds.x() + bounds.width()
+                && event.y() >= bounds.y() && event.y() <= bounds.y() + bounds.height()) {
+            if (sceneFrame == null) sceneFrame = SceneWorldRenderer.render(project, 256, 160);
+            int localX = (int) ((event.x() - bounds.x()) * sceneFrame.width() / bounds.width());
+            int localY = (int) ((event.y() - bounds.y()) * sceneFrame.height() / bounds.height());
+            String selected = SceneWorldRenderer.hitTest(sceneFrame, localX, localY);
+            project.selectedObjectId = selected == null ? "" : selected;
             return true;
         }
         return super.mouseClicked(event, doubleClick);
