@@ -124,10 +124,6 @@ public final class Canvas2DScreen extends Screen {
         addRenderableWidget(Button.builder(Component.literal("Layer Down"), b -> moveLayer(1))
                 .bounds(x, controlsTop + controlStep * 10, 78, 20).build());
 
-        addRenderableWidget(Button.builder(Component.literal("New"), b -> newDocument())
-                .bounds(172, 12, 48, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Open"), b -> openProjectPicker())
-                .bounds(224, 12, 52, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Save"), b -> saveDocument())
                 .bounds(280, 12, 52, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Add Layer"), b -> addLayer())
@@ -138,19 +134,6 @@ public final class Canvas2DScreen extends Screen {
                 .bounds(510, 12, 72, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Bright -"), b -> adjustBrightness(-12))
                 .bounds(586, 12, 72, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Import Image"), b -> openImagePicker())
-                .bounds(this.width - 178, 310, 158, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Grayscale"), b -> applyImageFilter("grayscale"))
-                .bounds(this.width - 178, 336, 76, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Invert"), b -> applyImageFilter("invert"))
-                .bounds(this.width - 98, 336, 78, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Sepia"), b -> applyImageFilter("sepia"))
-                .bounds(this.width - 178, 360, 76, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Reset Image"), b -> {
-            checkpoint();
-            document.backgroundImage = "";
-            status = "Background image cleared";
-        }).bounds(this.width - 98, 360, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Export PNG"), b -> exportCanvas())
                 .bounds(662, 12, 82, 20).build());
         addRenderableWidget(Button.builder(Component.literal("3D Studio"), b -> returnToParent())
