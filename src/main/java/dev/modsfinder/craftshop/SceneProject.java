@@ -11,6 +11,9 @@ public final class SceneProject {
     public String selectedObjectId = "";
     public String name = "Untitled Scene";
     public boolean ambientOcclusion = true;
+    public float lightYaw = 45.0F;
+    public float lightPitch = 73.0F;
+    public float ambientLight = 0.58F;
     public Camera camera = new Camera();
     public List<SceneObject> objects = new ArrayList<>();
 
