@@ -44,6 +44,7 @@ The 3D Studio is intentionally **not** a Blender-style viewport layout. There is
 - Duplicate, Delete, Hide/Show and Lock/Unlock operate on the selected object.
 - Undo/Redo supports up to 80 recorded changes; Ctrl+Z, Ctrl+Y and Ctrl+D are also supported.
 - Spectator-camera position controls are available as buttons.
+- **Preview** opens the fixed PNG composition without changing the editing layout. Drag to look around, use WASD to move, Space/C to move vertically, and the mouse wheel to zoom. Escape returns to the Studio; the preview camera changes remain in the current project.
 - Projects are saved as editable `.craftshop` files in `.minecraft/craftshop/projects`.
 
 The 3D scene is independent from the live Minecraft world. Preview entities are created only for rendering and are never added to the live level; the editor does not place or modify live world blocks.
