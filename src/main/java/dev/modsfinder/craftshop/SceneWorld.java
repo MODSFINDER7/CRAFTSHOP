@@ -159,16 +159,16 @@ public final class SceneWorld {
 
         double forward = dx * (-sinYaw * cosPitch)
                 + dy * (-sinPitch) + dz * (-cosYaw * cosPitch);
-        if (forward < -2.0D) return false;
+        double scale = Math.max(0.05D, Math.max(object.transform.scaleX,
+                Math.max(object.transform.scaleY, object.transform.scaleZ)));
+        double radius = Math.min(32.0D, scale * 1.8D + 0.9D);
+        if (forward < -radius) return false;
 
         double right = dx * cosYaw - dz * sinYaw;
         double up = dx * (-sinYaw * sinPitch)
                 + dy * cosPitch + dz * (-cosYaw * sinPitch);
-        double scale = Math.max(0.05D, Math.max(object.transform.scaleX,
-                Math.max(object.transform.scaleY, object.transform.scaleZ)));
-        double radius = Math.min(32.0D, scale * 1.8D + 0.9D);
-        double horizontalLimit = Math.max(4.0D, forward * 1.55D + radius);
-        double verticalLimit = Math.max(4.0D, forward * 1.55D + radius);
+        double horizontalLimit = Math.max(4.0D, Math.max(0.0D, forward) * 1.55D + radius);
+        double verticalLimit = Math.max(4.0D, Math.max(0.0D, forward) * 1.55D + radius);
         return Math.abs(right) <= horizontalLimit && Math.abs(up) <= verticalLimit;
     }
 
