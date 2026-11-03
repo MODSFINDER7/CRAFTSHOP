@@ -26,9 +26,9 @@ Arbitrary PNG files can be placed in `.minecraft/craftshop/canvas/imports` and a
 
 ## 2D PNG editor
 
-The 2D editor works with an imported PNG canvas and supports brush and eraser strokes, text placement, line/rectangle/ellipse tools, colour and brush-size controls, layers, visibility, opacity, layer reordering, crop bounds, ink brightness, undo/redo, grayscale/invert/sepia filters, project-relative image assets, named `.craftshop2d` projects, a project browser and full-resolution PNG export.
+The 2D editor works with an imported PNG canvas and supports brush and eraser strokes, text placement, line/rectangle/ellipse tools, a rectangular Select tool with move and resize handles for strokes, shapes and text on the active layer, colour and brush-size controls, layers, visibility, opacity, layer reordering, crop bounds, ink brightness, undo/redo, grayscale/invert/sepia filters, project-relative image assets, named `.craftshop2d` projects, a project browser and full-resolution PNG export.
 
-It is a lightweight drawing workspace, not a full Photoshop replacement. Advanced masks, selection transforms and advanced typography are not included yet.
+It is a lightweight drawing workspace, not a full Photoshop replacement. Advanced masks, non-destructive pixel selections and advanced typography controls are not included yet.
 
 ## Button-based 3D scene editor
 
