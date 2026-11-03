@@ -21,12 +21,13 @@ public final class SceneWorldRenderer {
         int h = Math.max(64, Math.min(256, height));
         int[] pixels = new int[w * h];
         double[] depth = new double[w * h];
+        String[] objectIds = new String[w * h];
         java.util.Arrays.fill(depth, Double.POSITIVE_INFINITY);
         Map<String, Bounds> bounds = new HashMap<>();
 
         SceneProject.Camera camera = project.camera == null ? new SceneProject.Camera() : project.camera;
         CameraBasis basis = new CameraBasis(camera);
-        Raster raster = new Raster(w, h, pixels, depth, basis);
+        Raster raster = new Raster(w, h, pixels, depth, objectIds, basis);
 
         if (project.objects != null) {
             for (SceneProject.SceneObject object : project.objects) {
@@ -62,7 +63,7 @@ public final class SceneWorldRenderer {
                 }
             }
         }
-        return new Frame(w, h, pixels, bounds);
+        return new Frame(w, h, pixels, objectIds, bounds);
     }
 
     public static void draw(GuiGraphicsExtractor graphics, Frame frame,
@@ -90,19 +91,8 @@ public final class SceneWorldRenderer {
     }
 
     public static String hitTest(Frame frame, int x, int y) {
-        if (frame == null) return null;
-        String result = null;
-        int bestArea = Integer.MAX_VALUE;
-        for (Map.Entry<String, Bounds> entry : frame.bounds.entrySet()) {
-            Bounds b = entry.getValue();
-            if (x < b.minX - 3 || x > b.maxX + 3 || y < b.minY - 3 || y > b.maxY + 3) continue;
-            int area = Math.max(1, (b.maxX - b.minX) * (b.maxY - b.minY));
-            if (area < bestArea) {
-                bestArea = area;
-                result = entry.getKey();
-            }
-        }
-        return result;
+        if (frame == null || x < 0 || y < 0 || x >= frame.width || y >= frame.height) return null;
+        return frame.objectIds[y * frame.width + x];
     }
 
     private static List<Box> objectBoxes(SceneProject.SceneObject object) {
@@ -183,7 +173,7 @@ public final class SceneWorldRenderer {
         return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
-    public record Frame(int width, int height, int[] pixels, Map<String, Bounds> bounds) {}
+    public record Frame(int width, int height, int[] pixels, String[] objectIds, Map<String, Bounds> bounds) {}
     public record Bounds(int minX, int minY, int maxX, int maxY) {}
     private record Box(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {}
     private record Vec3(double x, double y, double z) {}
@@ -213,18 +203,20 @@ public final class SceneWorldRenderer {
         final int width, height;
         final int[] pixels;
         final double[] depth;
+        final String[] objectIds;
         final CameraBasis camera;
         final double focal;
-        Raster(int width, int height, int[] pixels, double[] depth, CameraBasis camera) {
-            this.width = width; this.height = height; this.pixels = pixels; this.depth = depth; this.camera = camera;
+        Raster(int width, int height, int[] pixels, double[] depth, String[] objectIds, CameraBasis camera) {
+            this.width = width; this.height = height; this.pixels = pixels; this.depth = depth;
+            this.objectIds = objectIds; this.camera = camera;
             this.focal = Math.min(width, height) * 0.92 * camera.zoom;
         }
         Bounds quad(Vec3 a, Vec3 b, Vec3 c, Vec3 d, int color, String objectId) {
             CameraPoint ca = camera.transform(a), cb = camera.transform(b), cc = camera.transform(c), cd = camera.transform(d);
             if (ca.z <= NEAR || cb.z <= NEAR || cc.z <= NEAR || cd.z <= NEAR) return null;
             ScreenPoint pa = project(ca), pb = project(cb), pc = project(cc), pd = project(cd);
-            Bounds first = triangle(pa, pb, pc, color);
-            Bounds second = triangle(pa, pc, pd, color);
+            Bounds first = triangle(pa, pb, pc, color, objectId);
+            Bounds second = triangle(pa, pc, pd, color, objectId);
             if (first == null) return second;
             if (second == null) return first;
             return new Bounds(Math.min(first.minX, second.minX), Math.min(first.minY, second.minY),
@@ -234,7 +226,7 @@ public final class SceneWorldRenderer {
             return new ScreenPoint(width * 0.5 + p.x * focal / p.z,
                     height * 0.5 - p.y * focal / p.z, p.z);
         }
-        Bounds triangle(ScreenPoint a, ScreenPoint b, ScreenPoint c, int color) {
+        Bounds triangle(ScreenPoint a, ScreenPoint b, ScreenPoint c, int color, String objectId) {
             double area = edge(a.x,a.y,b.x,b.y,c.x,c.y);
             if (Math.abs(area) < 0.0001) return null;
             int minX = clamp((int)Math.floor(Math.min(a.x,Math.min(b.x,c.x))),0,width-1);
@@ -254,6 +246,7 @@ public final class SceneWorldRenderer {
                 if(z>=depth[index]) continue;
                 depth[index]=z;
                 pixels[index]=color;
+                objectIds[index]=objectId;
                 drawn=true;
                 actualMinX=Math.min(actualMinX,x); actualMinY=Math.min(actualMinY,y);
                 actualMaxX=Math.max(actualMaxX,x); actualMaxY=Math.max(actualMaxY,y);

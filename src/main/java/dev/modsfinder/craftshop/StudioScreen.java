@@ -138,16 +138,24 @@ public final class StudioScreen extends Screen {
         addButton("Z -", mx, 226, pairW, 20, () -> rotate(2, -ROTATE_STEP));
         addButton("Z +", mx + pairW + pairGap, 226, pairW, 20, () -> rotate(2, ROTATE_STEP));
 
-        addButton("Scale -", mx, 276, 78, 20, () -> scale(1.0F - SCALE_STEP));
-        addButton("Scale +", mx + 82, 276, 78, 20, () -> scale(1.0F + SCALE_STEP));
-        addButton("Duplicate", mx, 312, 78, 20, this::duplicateSelected);
-        addButton("Delete", mx + 82, 312, 78, 20, this::deleteSelected);
+        int scaleButtonWidth = 36;
+        addButton("X-", mx, 276, scaleButtonWidth, 20, () -> scaleAxis(0, 1.0F - SCALE_STEP));
+        addButton("X+", mx + 38, 276, scaleButtonWidth, 20, () -> scaleAxis(0, 1.0F + SCALE_STEP));
+        addButton("Y-", mx + 76, 276, scaleButtonWidth, 20, () -> scaleAxis(1, 1.0F - SCALE_STEP));
+        addButton("Y+", mx + 114, 276, scaleButtonWidth, 20, () -> scaleAxis(1, 1.0F + SCALE_STEP));
+        addButton("Z-", mx + 152, 276, scaleButtonWidth, 20, () -> scaleAxis(2, 1.0F - SCALE_STEP));
+        addButton("Z+", mx + 190, 276, scaleButtonWidth, 20, () -> scaleAxis(2, 1.0F + SCALE_STEP));
+        addButton("Uniform -", mx, 302, 78, 20, () -> scale(1.0F - SCALE_STEP));
+        addButton("Uniform +", mx + 82, 302, 78, 20, () -> scale(1.0F + SCALE_STEP));
+        addButton("Duplicate", mx, 334, 78, 20, this::duplicateSelected);
+        addButton("Delete", mx + 82, 334, 78, 20, this::deleteSelected);
         addButton(selected != null && selected.visible ? "Hide" : "Show",
-                mx, 338, 78, 20, this::toggleVisibility);
+                mx, 360, 78, 20, this::toggleVisibility);
         addButton(selected != null && selected.locked ? "Unlock" : "Lock",
-                mx + 82, 338, 78, 20, this::toggleLock);
-        addButton("Undo", mx, 370, 78, 20, this::undo);
-        addButton("Redo", mx + 82, 370, 78, 20, this::redo);
+                mx + 82, 360, 78, 20, this::toggleLock);
+        addButton("Undo", mx, 390, 78, 20, this::undo);
+        addButton("Redo", mx + 82, 390, 78, 20, this::redo);
+        addButton("Reset Transform", mx, 418, 160, 20, this::resetSelectedTransform);
 
         int listX = rightX() + 8;
         int listW = rightWidth() - 16;
@@ -254,11 +262,13 @@ public final class StudioScreen extends Screen {
                 0xFF9AA8B8, false);
         graphics.text(this.font, "ROTATE  /  15 DEGREES", middleX() + 10, 188,
                 0xFF9AA8B8, false);
-        graphics.text(this.font, "UNIFORM SCALE", middleX() + 10, 262,
+        graphics.text(this.font, "AXIS SCALE  /  X  Y  Z", middleX() + 10, 262,
                 0xFF9AA8B8, false);
-        graphics.text(this.font, "OBJECT ACTIONS", middleX() + 10, 298,
+        graphics.text(this.font, "UNIFORM SCALE", middleX() + 10, 290,
                 0xFF9AA8B8, false);
-        graphics.text(this.font, "HISTORY", middleX() + 10, 356,
+        graphics.text(this.font, "OBJECT ACTIONS", middleX() + 10, 320,
+                0xFF9AA8B8, false);
+        graphics.text(this.font, "HISTORY", middleX() + 10, 376,
                 0xFF9AA8B8, false);
 
         graphics.text(this.font, "03  /  HIERARCHY", rightX() + 10, 83, 0xFF55DDEE, true);
@@ -406,6 +416,18 @@ public final class StudioScreen extends Screen {
             object.transform.scaleY = clamp(object.transform.scaleY * factor, 0.05F, 20.0F);
             object.transform.scaleZ = clamp(object.transform.scaleZ * factor, 0.05F, 20.0F);
         });
+    }
+
+    private void scaleAxis(int axis, float factor) {
+        withSelected("Scaled axis", object -> {
+            if (axis == 0) object.transform.scaleX = clamp(object.transform.scaleX * factor, 0.05F, 20.0F);
+            else if (axis == 1) object.transform.scaleY = clamp(object.transform.scaleY * factor, 0.05F, 20.0F);
+            else object.transform.scaleZ = clamp(object.transform.scaleZ * factor, 0.05F, 20.0F);
+        });
+    }
+
+    private void resetSelectedTransform() {
+        withSelected("Transform reset", object -> object.transform = new SceneProject.Transform());
     }
 
     private void duplicateSelected() {
