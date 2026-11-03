@@ -140,6 +140,7 @@ public final class SceneRenderScreen extends Screen {
                 bounds.width(), bounds.height(), texture.width(), texture.height());
 
         sceneFrame = SceneWorldRenderer.render(project, 384, 256);
+        SceneWorldRenderer.draw(graphics, sceneFrame, bounds.x(), bounds.y(), bounds.width(), bounds.height());
         if (minecraft != null && minecraft.level != null) {
             for (ProjectedObject projected : projectObjects(bounds)) {
                 SceneAssetRenderer.extract(graphics, projected.object(), minecraft,
@@ -153,8 +154,6 @@ public final class SceneRenderScreen extends Screen {
                             radius * 2, radius * 2, 0xFF42E9F4);
                 }
             }
-        } else {
-            SceneWorldRenderer.draw(graphics, sceneFrame, bounds.x(), bounds.y(), bounds.width(), bounds.height());
         }
         drawPreviewHelp(graphics);
     }
