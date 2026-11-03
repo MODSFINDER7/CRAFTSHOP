@@ -137,6 +137,12 @@ public final class SceneWorld {
                 if (object.visible && insideCameraFrustum(object, camera)) visible.add(object);
             }
         }
+        visible.sort(Comparator.comparingDouble((SceneProject.SceneObject object) -> {
+            double dx = object.transform.x - cameraX;
+            double dy = object.transform.y - cameraY;
+            double dz = object.transform.z - cameraZ;
+            return dx * dx + dy * dy + dz * dz;
+        }).reversed());
         return visible;
     }
 
