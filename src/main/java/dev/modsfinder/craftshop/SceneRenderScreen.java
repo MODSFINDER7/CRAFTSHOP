@@ -63,6 +63,13 @@ public final class SceneRenderScreen extends Screen {
 
     public record CanvasBounds(int x, int y, int width, int height) {}
 
+    private void rebuildSceneFrame(CanvasBounds bounds) {
+        double scale = Math.min(2.0D, 1024.0D / Math.max(1, Math.max(bounds.width(), bounds.height())));
+        int renderWidth = Math.max(64, (int) Math.round(bounds.width() * scale));
+        int renderHeight = Math.max(64, (int) Math.round(bounds.height() * scale));
+        sceneFrame = SceneWorldRenderer.render(project, renderWidth, renderHeight, minecraft);
+    }
+
     private List<ProjectedObject> projectObjects(CanvasBounds bounds) {
         List<ProjectedObject> projected = new ArrayList<>();
         SceneProject.Camera camera = project.camera == null ? new SceneProject.Camera() : project.camera;
@@ -139,9 +146,7 @@ public final class SceneRenderScreen extends Screen {
         graphics.blit(RenderPipelines.GUI_TEXTURED, texture.id(), bounds.x(), bounds.y(), 0.0F, 0.0F,
                 bounds.width(), bounds.height(), texture.width(), texture.height());
 
-        if (sceneFrame == null) {
-            sceneFrame = SceneWorldRenderer.render(project, 384, 256, minecraft);
-        }
+        if (sceneFrame == null) rebuildSceneFrame(bounds);
         SceneWorldRenderer.draw(graphics, sceneFrame, bounds.x(), bounds.y(), bounds.width(), bounds.height());
         if (minecraft != null && minecraft.level != null) {
             for (ProjectedObject projected : projectObjects(bounds)) {
@@ -226,7 +231,7 @@ public final class SceneRenderScreen extends Screen {
         CanvasBounds bounds = canvasBounds(width, height, imageWidth, imageHeight);
         if (event.x() >= bounds.x() && event.x() <= bounds.x() + bounds.width()
                 && event.y() >= bounds.y() && event.y() <= bounds.y() + bounds.height()) {
-            if (sceneFrame == null) sceneFrame = SceneWorldRenderer.render(project, 384, 256, minecraft);
+            if (sceneFrame == null) rebuildSceneFrame(bounds);
             int localX = (int) ((event.x() - bounds.x()) * sceneFrame.width() / bounds.width());
             int localY = (int) ((event.y() - bounds.y()) * sceneFrame.height() / bounds.height());
             String selected = SceneWorldRenderer.hitTest(sceneFrame, localX, localY);
