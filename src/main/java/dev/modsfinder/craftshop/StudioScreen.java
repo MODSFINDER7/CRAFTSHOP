@@ -116,6 +116,10 @@ public final class StudioScreen extends Screen {
         addButton("Zoom-", buttonX + 88, cameraY + 104, smallW, 20, () -> zoomCamera(-0.1F));
         addButton("AO: " + (project.ambientOcclusion ? "ON" : "OFF"), buttonX,
                 cameraY + 132, buttonWidth, 20, this::toggleAmbientOcclusion);
+        addButton("Light-", buttonX, cameraY + 160, smallW, 20, () -> adjustLightYaw(-10.0F));
+        addButton("Light+", buttonX + 44, cameraY + 160, smallW, 20, () -> adjustLightYaw(10.0F));
+        addButton("Amb-", buttonX + 88, cameraY + 160, smallW, 20, () -> adjustAmbientLight(-0.05F));
+        addButton("Amb+", buttonX, cameraY + 185, smallW, 20, () -> adjustAmbientLight(0.05F));
 
         int mx = middleX() + 10;
         int pairW = 52;
@@ -544,6 +548,22 @@ public final class StudioScreen extends Screen {
         checkpoint();
         project.ambientOcclusion = !project.ambientOcclusion;
         status = "Screen-space ambient occlusion " + (project.ambientOcclusion ? "enabled" : "disabled");
+        rebuild();
+    }
+
+    private void adjustLightYaw(float amount) {
+        checkpoint();
+        project.lightYaw += amount;
+        if (project.lightYaw > 360.0F) project.lightYaw -= 360.0F;
+        if (project.lightYaw < -360.0F) project.lightYaw += 360.0F;
+        status = "Studio light direction: " + Math.round(project.lightYaw) + "°";
+        rebuild();
+    }
+
+    private void adjustAmbientLight(float amount) {
+        checkpoint();
+        project.ambientLight = clamp(project.ambientLight + amount, 0.15F, 0.95F);
+        status = "Ambient light: " + Math.round(project.ambientLight * 100.0F) + "%";
         rebuild();
     }
 
