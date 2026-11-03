@@ -151,10 +151,7 @@ public final class SceneRenderScreen extends Screen {
         if (minecraft != null && minecraft.level != null) {
             for (ProjectedObject projected : projectObjects(bounds)) {
                 if (!"minecraft_entity".equals(projected.object().kind)) continue;
-                int localX = (projected.x() - bounds.x()) * sceneFrame.width() / Math.max(1, bounds.width());
-                int localY = (projected.y() - bounds.y()) * sceneFrame.height() / Math.max(1, bounds.height());
-                String centerOccluder = SceneWorldRenderer.hitTest(sceneFrame, localX, localY);
-                if (centerOccluder != null && !centerOccluder.equals(projected.object().id)) continue;
+                if (!SceneWorldRenderer.hasVisiblePixels(sceneFrame, projected.object().id)) continue;
                 SceneAssetRenderer.extract(graphics, projected.object(), minecraft,
                         projected.x(), projected.y(), projected.halfSize());
                 if (projected.object().id.equals(project.selectedObjectId)) {
