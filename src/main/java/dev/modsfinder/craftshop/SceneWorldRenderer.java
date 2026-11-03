@@ -44,7 +44,7 @@ public final class SceneWorldRenderer {
                     int faceIndex = 0;
                     for (int[] face : faces) {
                         int faceColor = shade(color, faceIndex++);
-                        Raster.Bounds drawn = raster.quad(vertices[face[0]], vertices[face[1]],
+                        Bounds drawn = raster.quad(vertices[face[0]], vertices[face[1]],
                                 vertices[face[2]], vertices[face[3]], faceColor, object.id);
                         if (drawn != null) {
                             startX = Math.min(startX, drawn.minX);

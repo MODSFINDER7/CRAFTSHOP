@@ -195,7 +195,6 @@ public final class SceneRenderScreen extends Screen {
     }
 
     @Override
-    @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         if (event.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !isReady()) {
             return super.mouseClicked(event, doubleClick);
