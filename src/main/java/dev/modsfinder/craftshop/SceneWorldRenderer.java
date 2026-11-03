@@ -432,16 +432,49 @@ public final class SceneWorldRenderer {
         void texturedQuad(Vec3 a, Vec3 b, Vec3 c, Vec3 d, TextureAtlasSprite sprite,
                           BufferedImage texture, float[][] uv, float brightness,
                           int fallbackColor, String objectId) {
-            CameraPoint ca = camera.transform(a), cb = camera.transform(b);
-            CameraPoint cc = camera.transform(c), cd = camera.transform(d);
-            if (ca.z <= NEAR || cb.z <= NEAR || cc.z <= NEAR || cd.z <= NEAR
-                    || sprite == null || texture == null) {
+            if (sprite == null || texture == null) {
                 quad(a, b, c, d, fallbackColor, objectId);
                 return;
             }
-            ScreenPoint sa = project(ca), sb = project(cb), sc = project(cc), sd = project(cd);
-            texturedTriangle(sa, sb, sc, uv[0], uv[1], uv[2], sprite, texture, brightness, objectId);
-            texturedTriangle(sa, sc, sd, uv[0], uv[2], uv[3], sprite, texture, brightness, objectId);
+
+            List<TexturedPoint> input = List.of(
+                    new TexturedPoint(camera.transform(a), uv[0][0], uv[0][1]),
+                    new TexturedPoint(camera.transform(b), uv[1][0], uv[1][1]),
+                    new TexturedPoint(camera.transform(c), uv[2][0], uv[2][1]),
+                    new TexturedPoint(camera.transform(d), uv[3][0], uv[3][1]));
+            List<TexturedPoint> clipped = new ArrayList<>(6);
+            TexturedPoint previous = input.get(input.size() - 1);
+            boolean previousInside = previous.position.z > NEAR;
+            for (TexturedPoint current : input) {
+                boolean currentInside = current.position.z > NEAR;
+                if (currentInside != previousInside) {
+                    double t = (NEAR - previous.position.z)
+                            / (current.position.z - previous.position.z);
+                    CameraPoint p = new CameraPoint(
+                            previous.position.x + (current.position.x - previous.position.x) * t,
+                            previous.position.y + (current.position.y - previous.position.y) * t,
+                            NEAR + 0.00001D);
+                    clipped.add(new TexturedPoint(p,
+                            (float) (previous.u + (current.u - previous.u) * t),
+                            (float) (previous.v + (current.v - previous.v) * t)));
+                }
+                if (currentInside) clipped.add(current);
+                previous = current;
+                previousInside = currentInside;
+            }
+            if (clipped.size() < 3) return;
+
+            TexturedPoint origin = clipped.get(0);
+            ScreenPoint screenOrigin = project(origin.position);
+            for (int i = 1; i < clipped.size() - 1; i++) {
+                TexturedPoint second = clipped.get(i);
+                TexturedPoint third = clipped.get(i + 1);
+                texturedTriangle(screenOrigin, project(second.position), project(third.position),
+                        new float[]{origin.u, origin.v},
+                        new float[]{second.u, second.v},
+                        new float[]{third.u, third.v},
+                        sprite, texture, brightness, objectId);
+            }
         }
         void texturedTriangle(ScreenPoint a, ScreenPoint b, ScreenPoint c,
                               float[] uvA, float[] uvB, float[] uvC,
@@ -602,5 +635,5 @@ public final class SceneWorldRenderer {
             return maxX < minX ? null : new Bounds(minX, minY, maxX, maxY);
         }
     }
-    private record ScreenPoint(double x,double y,double z) {}
+    private record ScreenPoint(double x,double y,double z) {}\n    private record TexturedPoint(CameraPoint position, float u, float v) {}
 }
