@@ -1,6 +1,15 @@
 package dev.modsfinder.craftshop;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.core.Direction;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,6 +26,10 @@ public final class SceneWorldRenderer {
     private SceneWorldRenderer() {}
 
     public static Frame render(SceneProject project, int width, int height) {
+        return render(project, width, height, null);
+    }
+
+    public static Frame render(SceneProject project, int width, int height, Minecraft minecraft) {
         int w = Math.max(64, Math.min(384, width));
         int h = Math.max(64, Math.min(256, height));
         int[] pixels = new int[w * h];
@@ -33,27 +46,42 @@ public final class SceneWorldRenderer {
             for (SceneProject.SceneObject object : project.objects) {
                 if (object == null || !object.visible || object.transform == null) continue;
                 int startX = w, startY = h, endX = -1, endY = -1;
-                int color = materialColor(object.assetId);
-                List<Box> boxes = objectBoxes(object);
-                for (Box box : boxes) {
-                    int[][] faces = {
-                            {0, 1, 2, 3}, {5, 4, 7, 6},
-                            {4, 0, 3, 7}, {1, 5, 6, 2},
-                            {3, 2, 6, 7}, {4, 5, 1, 0}
-                    };
-                    Vec3[] vertices = boxVertices(box, object.transform);
-                    int faceIndex = 0;
-                    for (int[] face : faces) {
-                        int faceColor = shade(color, faceIndex++);
-                        Bounds drawn = raster.quad(vertices[face[0]], vertices[face[1]],
-                                vertices[face[2]], vertices[face[3]], faceColor, object.id);
-                        if (drawn != null) {
-                            startX = Math.min(startX, drawn.minX);
-                            startY = Math.min(startY, drawn.minY);
-                            endX = Math.max(endX, drawn.maxX);
-                            endY = Math.max(endY, drawn.maxY);
+                boolean renderedModel = false;
+                if (minecraft != null && "minecraft_block".equals(object.kind)) {
+                    renderedModel = renderBakedBlockModel(raster, object, minecraft,
+                            new int[]{startX, startY, endX, endY});
+                    Bounds modelBounds = raster.objectBounds(object.id);
+                    if (modelBounds != null) {
+                        startX = Math.min(startX, modelBounds.minX);
+                        startY = Math.min(startY, modelBounds.minY);
+                        endX = Math.max(endX, modelBounds.maxX);
+                        endY = Math.max(endY, modelBounds.maxY);
+                    }
+                }
+                if (!renderedModel) {
+                    int color = materialColor(object.assetId);
+                    List<Box> boxes = objectBoxes(object);
+                    for (Box box : boxes) {
+                        int[][] faces = {
+                                {0, 1, 2, 3}, {5, 4, 7, 6},
+                                {4, 0, 3, 7}, {1, 5, 6, 2},
+                                {3, 2, 6, 7}, {4, 5, 1, 0}
+                        };
+                        Vec3[] vertices = boxVertices(box, object.transform);
+                        int faceIndex = 0;
+                        for (int[] face : faces) {
+                            int faceColor = shade(color, faceIndex++);
+                            raster.quad(vertices[face[0]], vertices[face[1]],
+                                    vertices[face[2]], vertices[face[3]], faceColor, object.id);
                         }
                     }
+                }
+                Bounds objectBounds = raster.objectBounds(object.id);
+                if (objectBounds != null) {
+                    startX = Math.min(startX, objectBounds.minX);
+                    startY = Math.min(startY, objectBounds.minY);
+                    endX = Math.max(endX, objectBounds.maxX);
+                    endY = Math.max(endY, objectBounds.maxY);
                 }
                 if (endX >= startX && endY >= startY) {
                     bounds.put(object.id, new Bounds(startX, startY, endX, endY));
@@ -93,6 +121,69 @@ public final class SceneWorldRenderer {
     public static String hitTest(Frame frame, int x, int y) {
         if (frame == null || x < 0 || y < 0 || x >= frame.width || y >= frame.height) return null;
         return frame.objectIds[y * frame.width + x];
+    }
+
+    private static boolean renderBakedBlockModel(Raster raster, SceneProject.SceneObject object,
+                                                   Minecraft minecraft, int[] ignoredBounds) {
+        try {
+            net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.tryParse(object.assetId);
+            if (id == null) return false;
+            Block block = BuiltInRegistries.BLOCK.getValue(id);
+            if (block == null || block == net.minecraft.world.level.block.Blocks.AIR) return false;
+            BlockState state = block.defaultBlockState();
+            BlockStateModel model = minecraft.getModelManager().getBlockStateModelSet().get(state);
+            List<BlockStateModelPart> parts = new ArrayList<>();
+            model.collectParts(RandomSource.create(0x435241465453484FL), parts);
+            boolean rendered = false;
+            for (BlockStateModelPart part : parts) {
+                List<BakedQuad> quads = new ArrayList<>(part.getQuads(null));
+                for (Direction direction : Direction.values()) quads.addAll(part.getQuads(direction));
+                for (BakedQuad quad : quads) {
+                    Vec3[] vertices = new Vec3[4];
+                    for (int i = 0; i < 4; i++) {
+                        var p = quad.position(i);
+                        vertices[i] = transformModelVertex(p.x() - 0.5D, p.y() - 0.5D,
+                                p.z() - 0.5D, object.transform);
+                    }
+                    int color = spriteColor(quad);
+                    raster.quad(vertices[0], vertices[1], vertices[2], vertices[3], color, object.id);
+                    rendered = true;
+                }
+            }
+            return rendered;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private static int spriteColor(BakedQuad quad) {
+        try {
+            var sprite = quad.materialInfo().sprite();
+            int color = sprite.getPixelRGBA(0, 8, 8);
+            int alpha = (color >>> 24) & 255;
+            int red = (color >>> 16) & 255;
+            int green = (color >>> 8) & 255;
+            int blue = color & 255;
+            if (alpha == 0) return 0xFF777777;
+            return (alpha << 24) | (red << 16) | (green << 8) | blue;
+        } catch (RuntimeException exception) {
+            return 0xFF8C9AA7;
+        }
+    }
+
+    private static Vec3 transformModelVertex(double x, double y, double z, SceneProject.Transform t) {
+        double rx = Math.toRadians(t.rotationX), ry = Math.toRadians(t.rotationY), rz = Math.toRadians(t.rotationZ);
+        double sx = Math.max(0.05, Math.min(20.0, t.scaleX));
+        double sy = Math.max(0.05, Math.min(20.0, t.scaleY));
+        double sz = Math.max(0.05, Math.min(20.0, t.scaleZ));
+        x *= sx; y *= sy; z *= sz;
+        double y1 = y * Math.cos(rx) - z * Math.sin(rx);
+        double z1 = y * Math.sin(rx) + z * Math.cos(rx);
+        double x2 = x * Math.cos(ry) + z1 * Math.sin(ry);
+        double z2 = -x * Math.sin(ry) + z1 * Math.cos(ry);
+        double x3 = x2 * Math.cos(rz) - y1 * Math.sin(rz);
+        double y3 = x2 * Math.sin(rz) + y1 * Math.cos(rz);
+        return new Vec3(x3 + t.x, y3 + t.y, z2 + t.z);
     }
 
     private static List<Box> objectBoxes(SceneProject.SceneObject object) {
@@ -353,6 +444,19 @@ public final class SceneWorldRenderer {
                 actualMaxX=Math.max(actualMaxX,x); actualMaxY=Math.max(actualMaxY,y);
             }
             return drawn ? new Bounds(actualMinX,actualMinY,actualMaxX,actualMaxY) : null;
+        }
+        Bounds objectBounds(String id) {
+            int minX = width, minY = height, maxX = -1, maxY = -1;
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    if (!id.equals(objectIds[y * width + x])) continue;
+                    minX = Math.min(minX, x);
+                    minY = Math.min(minY, y);
+                    maxX = Math.max(maxX, x);
+                    maxY = Math.max(maxY, y);
+                }
+            }
+            return maxX < minX ? null : new Bounds(minX, minY, maxX, maxY);
         }
         void selectionOutline(String selectedId) {
             int cyan = 0xFF42E9F4;
