@@ -161,7 +161,7 @@ public final class SceneRenderScreen extends Screen {
     private void drawPreviewHelp(GuiGraphicsExtractor graphics) {
         if (parent == null) return;
         graphics.fill(8, height - 31, width - 8, height - 8, 0xAA10151D);
-        graphics.text(font, "DRAG: Look  •  WASD: Move  •  SPACE/SHIFT: Rise/Lower  •  SPRINT: Fast  •  Scroll: Zoom  •  ESC: Back",
+        graphics.text(font, "CLICK: Select  •  WASD: Camera  •  IJKL/UO: Move Object  •  SHIFT+IJKL/UO: Rotate  •  +/-: Scale  •  DRAG: Look  •  ESC: Back",
                 14, height - 22, 0xFFFFFFFF, false);
     }
 
@@ -254,6 +254,43 @@ public final class SceneRenderScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        if (parent != null && project.selectedObjectId != null && !project.selectedObjectId.isBlank()) {
+            SceneProject.SceneObject selected = project.objects.stream()
+                    .filter(object -> project.selectedObjectId.equals(object.id))
+                    .findFirst().orElse(null);
+            if (selected != null && !selected.locked) {
+                int key = event.input();
+                boolean rotate = event.hasShiftDown();
+                float step = 0.25F;
+                float angle = 15.0F;
+                SceneProject.Transform transform = selected.transform;
+                switch (key) {
+                    case GLFW.GLFW_KEY_J -> { if (rotate) transform.rotationY -= angle; else transform.x -= step; }
+                    case GLFW.GLFW_KEY_L -> { if (rotate) transform.rotationY += angle; else transform.x += step; }
+                    case GLFW.GLFW_KEY_I -> { if (rotate) transform.rotationX -= angle; else transform.z -= step; }
+                    case GLFW.GLFW_KEY_K -> { if (rotate) transform.rotationX += angle; else transform.z += step; }
+                    case GLFW.GLFW_KEY_U -> { if (rotate) transform.rotationZ -= angle; else transform.y += step; }
+                    case GLFW.GLFW_KEY_O -> { if (rotate) transform.rotationZ += angle; else transform.y -= step; }
+                    case GLFW.GLFW_KEY_EQUAL, GLFW.GLFW_KEY_KP_ADD -> {
+                        transform.scaleX = Math.min(20.0F, transform.scaleX * 1.1F);
+                        transform.scaleY = Math.min(20.0F, transform.scaleY * 1.1F);
+                        transform.scaleZ = Math.min(20.0F, transform.scaleZ * 1.1F);
+                    }
+                    case GLFW.GLFW_KEY_MINUS, GLFW.GLFW_KEY_KP_SUBTRACT -> {
+                        transform.scaleX = Math.max(0.05F, transform.scaleX * 0.9F);
+                        transform.scaleY = Math.max(0.05F, transform.scaleY * 0.9F);
+                        transform.scaleZ = Math.max(0.05F, transform.scaleZ * 0.9F);
+                    }
+                    case GLFW.GLFW_KEY_DELETE, GLFW.GLFW_KEY_BACKSPACE -> {
+                        project.objects.remove(selected);
+                        SceneAssetRenderer.forget(selected.id);
+                        project.selectedObjectId = "";
+                    }
+                    default -> { return super.keyPressed(event); }
+                }
+                return true;
+            }
+        }
         return super.keyPressed(event);
     }
 
