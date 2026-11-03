@@ -129,7 +129,7 @@ public final class SceneWorld {
                     || Math.abs(dz) > MAX_RENDER_CHUNK_DISTANCE) continue;
             ordered.add(chunk);
         }
-        ordered.sort(Comparator.comparingLong(chunk -> chunk.distanceSquared(centerX, centerY, centerZ)));
+        ordered.sort(Comparator.comparingLong((SceneChunk chunk) -> chunk.distanceSquared(centerX, centerY, centerZ)).reversed());
 
         List<SceneProject.SceneObject> visible = new ArrayList<>();
         for (SceneChunk chunk : ordered) {
