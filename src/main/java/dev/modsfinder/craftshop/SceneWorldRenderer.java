@@ -49,7 +49,7 @@ public final class SceneWorldRenderer {
 
         SceneProject.Camera camera = project.camera == null ? new SceneProject.Camera() : project.camera;
         CameraBasis basis = new CameraBasis(camera);
-        Raster raster = new Raster(w, h, pixels, depth, objectIds, basis);
+        Raster raster = new Raster(w, h, pixels, depth, objectIds, basis, project);
 
         SceneWorld world = SceneWorld.from(project);
         for (SceneProject.SceneObject object : world.renderObjects(camera)) {
@@ -79,7 +79,7 @@ public final class SceneWorldRenderer {
                         Vec3[] vertices = boxVertices(box, object.transform);
                         int faceIndex = 0;
                         for (int[] face : faces) {
-                            int faceColor = shade(color, faceIndex++);
+                            int faceColor = raster.shadeColor(color, faceIndex++);
                             raster.quad(vertices[face[0]], vertices[face[1]],
                                     vertices[face[2]], vertices[face[3]], faceColor, object.id);
                         }
@@ -166,7 +166,7 @@ public final class SceneWorldRenderer {
                     vertices[i] = transformModelVertex(position[0], position[1], position[2], object.transform);
                 }
                 raster.texturedQuad(vertices[0], vertices[1], vertices[2], vertices[3],
-                        quad.sprite, quad.texture, quad.uv, quad.brightness, quad.fallbackColor, object.id);
+                        quad.sprite, quad.texture, quad.uv, quad.face, quad.baseColor, object.id);
             }
             return !mesh.isEmpty();
         } catch (RuntimeException exception) {
@@ -214,8 +214,7 @@ public final class SceneWorldRenderer {
                 }
                 TextureAtlasSprite sprite = quad.materialInfo().sprite();
                 mesh.add(new CachedBlockQuad(positions, uv, sprite, spriteImage(minecraft, sprite),
-                        faceBrightness(quad.direction().ordinal()),
-                        shade(materialColor(assetId), quad.direction().ordinal())));
+                        quad.direction().ordinal(), materialColor(assetId)));
             }
         }
         return List.copyOf(mesh);
@@ -403,35 +402,6 @@ public final class SceneWorldRenderer {
         return 0xFF8C9AA7;
     }
 
-    private static float faceBrightness(int face) {
-        // A stable studio key light from above and slightly north-west,
-        // combined with a neutral ambient term for readable unlit faces.
-        double nx = 0.0D, ny = 0.0D, nz = 0.0D;
-        switch (face) {
-            case 0 -> ny = -1.0D; // DOWN
-            case 1 -> ny = 1.0D;  // UP
-            case 2 -> nz = -1.0D; // NORTH
-            case 3 -> nz = 1.0D;  // SOUTH
-            case 4 -> nx = -1.0D; // WEST
-            case 5 -> nx = 1.0D;  // EAST
-            default -> { return 0.82F; }
-        }
-        double lightX = -0.20D;
-        double lightY = 0.96D;
-        double lightZ = -0.20D;
-        double dot = Math.max(0.0D, nx * lightX + ny * lightY + nz * lightZ);
-        return (float) (0.58D + 0.42D * dot);
-    }
-
-    private static int shade(int color, int face) {
-        double factor = faceBrightness(face);
-        int a = color >>> 24;
-        int r = (int) (((color >>> 16) & 255) * factor);
-        int g = (int) (((color >>> 8) & 255) * factor);
-        int b = (int) ((color & 255) * factor);
-        return (a << 24) | (r << 16) | (g << 8) | b;
-    }
-
     public record Frame(int width, int height, int[] pixels, String[] objectIds, Map<String, Bounds> bounds) {}
     public record Bounds(int minX, int minY, int maxX, int maxY) {}
     private record Box(double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {}
@@ -465,11 +435,51 @@ public final class SceneWorldRenderer {
         final String[] objectIds;
         final CameraBasis camera;
         final double focal;
+        final double lightX, lightY, lightZ;
+        final double ambient;
         final Map<String, MutableBounds> trackedBounds = new HashMap<>();
-        Raster(int width, int height, int[] pixels, double[] depth, String[] objectIds, CameraBasis camera) {
+        Raster(int width, int height, int[] pixels, double[] depth, String[] objectIds,
+               CameraBasis camera, SceneProject project) {
             this.width = width; this.height = height; this.pixels = pixels; this.depth = depth;
             this.objectIds = objectIds; this.camera = camera;
             this.focal = Math.min(width, height) * 0.92 * camera.zoom;
+
+            double yaw = Math.toRadians(project.lightYaw);
+            double pitch = Math.toRadians(project.lightPitch);
+            double horizontal = Math.cos(pitch);
+            double lx = -Math.sin(yaw) * horizontal;
+            double ly = Math.sin(pitch);
+            double lz = -Math.cos(yaw) * horizontal;
+            double length = Math.sqrt(lx * lx + ly * ly + lz * lz);
+            this.lightX = lx / length;
+            this.lightY = ly / length;
+            this.lightZ = lz / length;
+            this.ambient = Math.max(0.15D, Math.min(0.95D, project.ambientLight));
+        }
+
+        float faceBrightness(int face) {
+            double nx = 0.0D, ny = 0.0D, nz = 0.0D;
+            switch (face) {
+                case 0 -> ny = -1.0D; // DOWN
+                case 1 -> ny = 1.0D;  // UP
+                case 2 -> nz = -1.0D; // NORTH
+                case 3 -> nz = 1.0D;  // SOUTH
+                case 4 -> nx = -1.0D; // WEST
+                case 5 -> nx = 1.0D;  // EAST
+                default -> { return 0.82F; }
+            }
+            double direct = Math.max(0.0D, nx * lightX + ny * lightY + nz * lightZ);
+            return (float) (ambient + (1.0D - ambient) * direct);
+        }
+
+        int shadeColor(int color, int face) {
+            double factor = faceBrightness(face);
+            int alpha = (color >>> 24) & 255;
+            int red = (int) Math.round(((color >>> 16) & 255) * factor);
+            int green = (int) Math.round(((color >>> 8) & 255) * factor);
+            int blue = (int) Math.round((color & 255) * factor);
+            return (alpha << 24) | (clamp(red, 0, 255) << 16)
+                    | (clamp(green, 0, 255) << 8) | clamp(blue, 0, 255);
         }
 
         /**
@@ -518,10 +528,11 @@ public final class SceneWorldRenderer {
         }
 
         void texturedQuad(Vec3 a, Vec3 b, Vec3 c, Vec3 d, TextureAtlasSprite sprite,
-                          BufferedImage texture, float[][] uv, float brightness,
-                          int fallbackColor, String objectId) {
+                          BufferedImage texture, float[][] uv, int face,
+                          int baseColor, String objectId) {
+            float brightness = faceBrightness(face);
             if (sprite == null || texture == null) {
-                quad(a, b, c, d, fallbackColor, objectId);
+                quad(a, b, c, d, shadeColor(baseColor, face), objectId);
                 return;
             }
 
@@ -756,7 +767,7 @@ public final class SceneWorldRenderer {
     }
     private record CachedBlockQuad(double[][] positions, float[][] uv,
                                    TextureAtlasSprite sprite, BufferedImage texture,
-                                   float brightness, int fallbackColor) {}
+                                   int face, int baseColor) {}
     private record ScreenPoint(double x,double y,double z) {}
     private record TexturedPoint(CameraPoint position, float u, float v) {}
 }
