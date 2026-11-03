@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.RandomSource;
@@ -16,6 +17,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.WeakHashMap;
+import java.awt.image.BufferedImage;
+import java.io.InputStream;
+import javax.imageio.ImageIO;
 
 /**
  * Independent CPU scene renderer. It rasterizes scene geometry into its own
@@ -23,6 +28,7 @@ import java.util.Map;
  */
 public final class SceneWorldRenderer {
     private static final double NEAR = 0.08D;
+    private static final Map<ResourceManager, Map<net.minecraft.resources.Identifier, BufferedImage>> SPRITE_IMAGES = new WeakHashMap<>();
 
     private SceneWorldRenderer() {}
 
@@ -151,14 +157,40 @@ public final class SceneWorldRenderer {
                         uv[i][1] = Float.intBitsToFloat((int) (packedUv >>> 32));
                     }
                     TextureAtlasSprite sprite = quad.materialInfo().sprite();
+                    int fallbackColor = shade(materialColor(object.assetId), quad.direction().ordinal());
                     raster.texturedQuad(vertices[0], vertices[1], vertices[2], vertices[3],
-                            sprite, uv, faceBrightness(quad.direction().ordinal()), object.id);
+                            sprite, spriteImage(minecraft, sprite), uv,
+                            faceBrightness(quad.direction().ordinal()), fallbackColor, object.id);
                     rendered = true;
                 }
             }
             return rendered;
         } catch (RuntimeException exception) {
             return false;
+        }
+    }
+
+    private static BufferedImage spriteImage(Minecraft minecraft, TextureAtlasSprite sprite) {
+        if (minecraft == null || sprite == null) return null;
+        try {
+            ResourceManager manager = minecraft.getResourceManager();
+            net.minecraft.resources.Identifier spriteId = sprite.contents().name();
+            net.minecraft.resources.Identifier fileId = net.minecraft.resources.Identifier.tryParse(
+                    spriteId.getNamespace() + ":textures/" + spriteId.getPath() + ".png");
+            if (fileId == null) return null;
+            Map<net.minecraft.resources.Identifier, BufferedImage> cache =
+                    SPRITE_IMAGES.computeIfAbsent(manager, ignored -> new HashMap<>());
+            BufferedImage cached = cache.get(fileId);
+            if (cached != null) return cached;
+            var resource = manager.getResource(fileId).orElse(null);
+            if (resource == null) return null;
+            try (InputStream input = resource.open()) {
+                BufferedImage loaded = ImageIO.read(input);
+                if (loaded != null) cache.put(fileId, loaded);
+                return loaded;
+            }
+        } catch (Exception ignored) {
+            return null;
         }
     }
 
@@ -382,29 +414,31 @@ public final class SceneWorldRenderer {
             this.focal = Math.min(width, height) * 0.92 * camera.zoom;
         }
         void texturedQuad(Vec3 a, Vec3 b, Vec3 c, Vec3 d, TextureAtlasSprite sprite,
-                          float[][] uv, float brightness, String objectId) {
+                          BufferedImage texture, float[][] uv, float brightness,
+                          int fallbackColor, String objectId) {
             CameraPoint ca = camera.transform(a), cb = camera.transform(b);
             CameraPoint cc = camera.transform(c), cd = camera.transform(d);
-            if (ca.z <= NEAR || cb.z <= NEAR || cc.z <= NEAR || cd.z <= NEAR || sprite == null) {
-                int fallback = shade(0xFF8C9AA7, 0);
-                quad(a, b, c, d, fallback, objectId);
+            if (ca.z <= NEAR || cb.z <= NEAR || cc.z <= NEAR || cd.z <= NEAR
+                    || sprite == null || texture == null) {
+                quad(a, b, c, d, fallbackColor, objectId);
                 return;
             }
             ScreenPoint sa = project(ca), sb = project(cb), sc = project(cc), sd = project(cd);
-            texturedTriangle(sa, sb, sc, uv[0], uv[1], uv[2], sprite, brightness, objectId);
-            texturedTriangle(sa, sc, sd, uv[0], uv[2], uv[3], sprite, brightness, objectId);
+            texturedTriangle(sa, sb, sc, uv[0], uv[1], uv[2], sprite, texture, brightness, objectId);
+            texturedTriangle(sa, sc, sd, uv[0], uv[2], uv[3], sprite, texture, brightness, objectId);
         }
         void texturedTriangle(ScreenPoint a, ScreenPoint b, ScreenPoint c,
                               float[] uvA, float[] uvB, float[] uvC,
-                              TextureAtlasSprite sprite, float brightness, String objectId) {
+                              TextureAtlasSprite sprite, BufferedImage texture,
+                              float brightness, String objectId) {
             double area = edge(a.x,a.y,b.x,b.y,c.x,c.y);
             if (Math.abs(area) < 0.0001) return;
             int minX = clamp((int)Math.floor(Math.min(a.x,Math.min(b.x,c.x))),0,width-1);
             int maxX = clamp((int)Math.ceil(Math.max(a.x,Math.max(b.x,c.x))),0,width-1);
             int minY = clamp((int)Math.floor(Math.min(a.y,Math.min(b.y,c.y))),0,height-1);
             int maxY = clamp((int)Math.ceil(Math.max(a.y,Math.max(b.y,c.y))),0,height-1);
-            int spriteWidth = Math.max(1, sprite.contents().width());
-            int spriteHeight = Math.max(1, sprite.contents().height());
+            int spriteWidth = Math.max(1, texture.getWidth());
+            int spriteHeight = Math.max(1, texture.getHeight());
             float uRange = sprite.getU1() - sprite.getU0();
             float vRange = sprite.getV1() - sprite.getV0();
             for (int y = minY; y <= maxY; y++) for (int x = minX; x <= maxX; x++) {
@@ -423,7 +457,7 @@ public final class SceneWorldRenderer {
                 double localV = vRange == 0.0F ? 0.0D : (v - sprite.getV0()) / vRange;
                 int tx = clamp((int) (Math.max(0.0D, Math.min(0.999999D, localU)) * spriteWidth), 0, spriteWidth - 1);
                 int ty = clamp((int) (Math.max(0.0D, Math.min(0.999999D, localV)) * spriteHeight), 0, spriteHeight - 1);
-                int sample = sprite.contents().byMipLevel[0].getPixel(tx, ty);
+                int sample = texture.getRGB(tx, ty);
                 int alpha = (sample >>> 24) & 255;
                 if (alpha < 8) continue;
                 int red = (sample >>> 16) & 255;
