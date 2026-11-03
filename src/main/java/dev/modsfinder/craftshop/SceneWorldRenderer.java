@@ -666,5 +666,6 @@ public final class SceneWorldRenderer {
             return maxX < minX ? null : new Bounds(minX, minY, maxX, maxY);
         }
     }
-    private record ScreenPoint(double x,double y,double z) {}\n    private record TexturedPoint(CameraPoint position, float u, float v) {}
+    private record ScreenPoint(double x,double y,double z) {}
+    private record TexturedPoint(CameraPoint position, float u, float v) {}
 }
