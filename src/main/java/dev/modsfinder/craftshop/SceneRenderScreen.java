@@ -139,10 +139,11 @@ public final class SceneRenderScreen extends Screen {
         graphics.blit(RenderPipelines.GUI_TEXTURED, texture.id(), bounds.x(), bounds.y(), 0.0F, 0.0F,
                 bounds.width(), bounds.height(), texture.width(), texture.height());
 
-        sceneFrame = SceneWorldRenderer.render(project, 384, 256);
+        sceneFrame = SceneWorldRenderer.render(project, 384, 256, minecraft);
         SceneWorldRenderer.draw(graphics, sceneFrame, bounds.x(), bounds.y(), bounds.width(), bounds.height());
         if (minecraft != null && minecraft.level != null) {
             for (ProjectedObject projected : projectObjects(bounds)) {
+                if (!"minecraft_entity".equals(projected.object().kind)) continue;
                 SceneAssetRenderer.extract(graphics, projected.object(), minecraft,
                         projected.x(), projected.y(), projected.halfSize());
                 if (projected.object().id.equals(project.selectedObjectId)) {
@@ -192,6 +193,7 @@ public final class SceneRenderScreen extends Screen {
         camera.x += (float) (Math.cos(yaw) * side - Math.sin(yaw) * forward) * speed;
         camera.y += vertical * speed;
         camera.z += (float) (-Math.sin(yaw) * side - Math.cos(yaw) * forward) * speed;
+        sceneFrame = null;
     }
 
     private void moveCamera(float side, float vertical, float forward) {
@@ -207,6 +209,7 @@ public final class SceneRenderScreen extends Screen {
         if (project.camera == null) project.camera = new SceneProject.Camera();
         project.camera.yaw += yaw;
         project.camera.pitch = Math.max(-89.0F, Math.min(89.0F, project.camera.pitch + pitch));
+        sceneFrame = null;
     }
 
     @Override
@@ -281,6 +284,7 @@ public final class SceneRenderScreen extends Screen {
         if (project.camera == null) project.camera = new SceneProject.Camera();
         project.camera.zoom = Math.max(0.2F, Math.min(4.0F,
                 project.camera.zoom + (float) scrollY * 0.1F));
+        sceneFrame = null;
         return true;
     }
 
