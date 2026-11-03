@@ -145,6 +145,9 @@ public final class ProjectManager {
         camera.targetX = finite(camera.targetX, 0.0F, -100000.0F, 100000.0F);
         camera.targetY = finite(camera.targetY, 0.0F, -100000.0F, 100000.0F);
         camera.targetZ = finite(camera.targetZ, 0.0F, -100000.0F, 100000.0F);
+        project.lightYaw = finite(project.lightYaw, 45.0F, -360000.0F, 360000.0F);
+        project.lightPitch = finite(project.lightPitch, 73.0F, 10.0F, 89.0F);
+        project.ambientLight = finite(project.ambientLight, 0.58F, 0.15F, 0.95F);
 
         java.util.HashSet<String> ids = new java.util.HashSet<>();
         project.objects.removeIf(java.util.Objects::isNull);
