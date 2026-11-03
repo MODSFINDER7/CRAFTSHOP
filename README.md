@@ -47,7 +47,7 @@ The 3D Studio is intentionally **not** a Blender-style viewport layout. There is
 - **Preview** opens the fixed PNG composition without changing the editing layout. Drag to look around, use WASD to move, Space/C to move vertically, and the mouse wheel to zoom. Escape returns to the Studio; the preview camera changes remain in the current project.
 - Projects are saved as editable `.craftshop` files in `.minecraft/craftshop/projects`.
 
-The scene project data is separate from the live Minecraft world: editing objects never places or modifies live world blocks. The current preview still borrows the loaded client level as a rendering context for entity model extraction. It does not yet own a separate ClientLevel, chunk cache, LevelExtractor/LevelRenderer pair, or an off-screen world render target.
+The scene project data is separate from the live Minecraft world: editing objects never places or modifies live world blocks. The scene data is independent of the live Minecraft world. The preview uses a standalone CPU rasterizer with its own colour and depth buffers; it does not borrow or modify the loaded level. This is an isolated 3D preview, not yet a second Minecraft world backed by `ClientLevel`, chunk storage, `LevelExtractor`/`LevelRenderer`, or Minecraft's off-screen render pipeline.
 
 Each `.craftshop` project stores its editable base PNG, scene objects, spectator camera and last rendered-output reference. The Render button creates a temporary render-only composition screen: the original PNG remains the fixed background, while Minecraft block/entity preview models are projected using the saved camera and object transforms. The result is captured at the source PNG dimensions and written into `.minecraft/craftshop/screenshots`, where it appears in the gallery. The original base PNG is preserved so repeated renders do not stack duplicate objects.
 
@@ -55,7 +55,7 @@ Opening a selected gallery screenshot in the 2D editor or 3D Studio uses that se
 
 ### Rendering scope
 
-The current compositor renders individual Minecraft model previews and orders them by object depth. It is not a full Minecraft world renderer: there is no independent chunk/section pipeline, per-pixel mesh occlusion, terrain physics, dynamic scene lighting, block/entity interaction simulation, or cast-shadow pass. Fabric 26.2 separates level extraction from drawing and requires Blaze3D-compatible rendering rather than raw OpenGL; registering ordinary LevelRenderEvents only adds geometry to the currently rendered level and does not create a second world. The 3D Studio editing interface remains button-based, with no central viewport, grid or timeline.
+The current CPU preview rasterizes cube geometry and simplified low-poly entity placeholders with perspective projection, depth testing, object transforms and camera zoom. It does not yet load Minecraft blockstate model JSON, atlas textures, vanilla entity renderer models, or entity animations. It is not a full Minecraft world renderer: there is no chunk/section pipeline, terrain physics, dynamic scene lighting, block/entity interaction simulation, or cast-shadow pass. Fabric 26.2 separates level extraction from drawing and requires Blaze3D-compatible rendering rather than raw OpenGL; registering ordinary LevelRenderEvents only adds geometry to the currently rendered level and does not create a second world. The 3D Studio editing interface remains button-based, with no central viewport, grid or timeline.
 
 ## Build and test policy
 
