@@ -145,7 +145,7 @@ public final class SceneWorldRenderer {
                         vertices[i] = transformModelVertex(p.x() - 0.5D, p.y() - 0.5D,
                                 p.z() - 0.5D, object.transform);
                     }
-                    int color = spriteColor(quad);
+                    int color = shade(materialColor(object.assetId), quad.direction().ordinal());
                     raster.quad(vertices[0], vertices[1], vertices[2], vertices[3], color, object.id);
                     rendered = true;
                 }
@@ -153,21 +153,6 @@ public final class SceneWorldRenderer {
             return rendered;
         } catch (RuntimeException exception) {
             return false;
-        }
-    }
-
-    private static int spriteColor(BakedQuad quad) {
-        try {
-            var sprite = quad.materialInfo().sprite();
-            int color = sprite.getPixelRGBA(0, 8, 8);
-            int alpha = (color >>> 24) & 255;
-            int red = (color >>> 16) & 255;
-            int green = (color >>> 8) & 255;
-            int blue = color & 255;
-            if (alpha == 0) return 0xFF777777;
-            return (alpha << 24) | (red << 16) | (green << 8) | blue;
-        } catch (RuntimeException exception) {
-            return 0xFF8C9AA7;
         }
     }
 
