@@ -272,6 +272,31 @@ public final class SceneRenderScreen extends Screen {
 
     @Override
     public boolean keyPressed(KeyEvent event) {
+        if (parent != null && event.hasControlDown() && event.input() == GLFW.GLFW_KEY_D) {
+            SceneProject.SceneObject source = project.objects.stream()
+                    .filter(object -> project.selectedObjectId.equals(object.id)).findFirst().orElse(null);
+            if (source != null) {
+                SceneProject.SceneObject copy = new SceneProject.SceneObject();
+                copy.id = java.util.UUID.randomUUID().toString();
+                copy.name = source.name + " Copy";
+                copy.kind = source.kind;
+                copy.assetId = source.assetId;
+                copy.visible = source.visible;
+                copy.transform.x = source.transform.x + 0.5F;
+                copy.transform.y = source.transform.y;
+                copy.transform.z = source.transform.z;
+                copy.transform.rotationX = source.transform.rotationX;
+                copy.transform.rotationY = source.transform.rotationY;
+                copy.transform.rotationZ = source.transform.rotationZ;
+                copy.transform.scaleX = source.transform.scaleX;
+                copy.transform.scaleY = source.transform.scaleY;
+                copy.transform.scaleZ = source.transform.scaleZ;
+                project.objects.add(copy);
+                project.selectedObjectId = copy.id;
+                sceneFrame = null;
+                return true;
+            }
+        }
         if (parent != null && project.selectedObjectId != null && !project.selectedObjectId.isBlank()) {
             SceneProject.SceneObject selected = project.objects.stream()
                     .filter(object -> project.selectedObjectId.equals(object.id))
