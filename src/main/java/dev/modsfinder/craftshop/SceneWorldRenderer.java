@@ -22,12 +22,20 @@ public final class SceneWorldRenderer {
         int[] pixels = new int[w * h];
         double[] depth = new double[w * h];
         String[] objectIds = new String[w * h];
+        for (int y = 0; y < h; y++) {
+            float blend = y / (float) Math.max(1, h - 1);
+            int red = Math.round(17 * (1.0F - blend) + 39 * blend);
+            int green = Math.round(27 * (1.0F - blend) + 53 * blend);
+            int blue = Math.round(42 * (1.0F - blend) + 68 * blend);
+            java.util.Arrays.fill(pixels, y * w, (y + 1) * w, 0xFF000000 | (red << 16) | (green << 8) | blue);
+        }
         java.util.Arrays.fill(depth, Double.POSITIVE_INFINITY);
         Map<String, Bounds> bounds = new HashMap<>();
 
         SceneProject.Camera camera = project.camera == null ? new SceneProject.Camera() : project.camera;
         CameraBasis basis = new CameraBasis(camera);
         Raster raster = new Raster(w, h, pixels, depth, objectIds, basis);
+        renderGround(raster);
 
         if (project.objects != null) {
             for (SceneProject.SceneObject object : project.objects) {
@@ -99,7 +107,48 @@ public final class SceneWorldRenderer {
         List<Box> boxes = new ArrayList<>();
         String id = object.assetId == null ? "" : object.assetId.toLowerCase(java.util.Locale.ROOT);
         if (!"minecraft_entity".equals(object.kind)) {
-            boxes.add(new Box(-0.5, -0.5, -0.5, 0.5, 0.5, 0.5));
+            if (id.contains("slab")) {
+                boxes.add(new Box(-0.5, -0.5, -0.5, 0.5, 0.0, 0.5));
+            } else if (id.contains("carpet") || id.contains("pressure_plate")) {
+                boxes.add(new Box(-0.5, -0.5, -0.5, 0.5, -0.40, 0.5));
+            } else if (id.contains("stairs")) {
+                boxes.add(new Box(-0.5, -0.5, -0.5, 0.5, 0.0, 0.5));
+                boxes.add(new Box(-0.5, 0.0, 0.0, 0.5, 0.5, 0.5));
+            } else if (id.contains("fence") || id.contains("wall")) {
+                boxes.add(new Box(-0.09, -0.5, -0.09, 0.09, 0.5, 0.09));
+                boxes.add(new Box(-0.5, -0.22, -0.09, 0.5, -0.08, 0.09));
+                boxes.add(new Box(-0.5, 0.12, -0.09, 0.5, 0.26, 0.09));
+                boxes.add(new Box(-0.09, -0.22, -0.5, 0.09, -0.08, 0.5));
+                boxes.add(new Box(-0.09, 0.12, -0.5, 0.09, 0.26, 0.5));
+            } else if (id.contains("torch") || id.contains("candle")) {
+                boxes.add(new Box(-0.055, -0.5, -0.055, 0.055, 0.24, 0.055));
+                boxes.add(new Box(-0.10, 0.24, -0.10, 0.10, 0.42, 0.10));
+            } else if (id.contains("lantern")) {
+                boxes.add(new Box(-0.24, -0.5, -0.24, 0.24, -0.38, 0.24));
+                boxes.add(new Box(-0.19, -0.38, -0.19, 0.19, 0.24, 0.19));
+                boxes.add(new Box(-0.25, 0.24, -0.25, 0.25, 0.34, 0.25));
+                boxes.add(new Box(-0.07, 0.34, -0.07, 0.07, 0.46, 0.07));
+            } else if (id.contains("chest")) {
+                boxes.add(new Box(-0.5, -0.5, -0.5, 0.5, 0.25, 0.5));
+                boxes.add(new Box(-0.5, 0.25, -0.5, 0.5, 0.5, 0.5));
+                boxes.add(new Box(-0.055, -0.12, -0.515, 0.055, 0.12, -0.48));
+            } else if (id.contains("crafting_table")) {
+                boxes.add(new Box(-0.5, -0.5, -0.5, 0.5, 0.35, 0.5));
+                boxes.add(new Box(-0.43, 0.35, -0.43, 0.43, 0.51, 0.43));
+            } else if (id.contains("bed")) {
+                boxes.add(new Box(-0.5, -0.5, -0.5, 0.5, -0.22, 0.5));
+                boxes.add(new Box(-0.5, -0.22, -0.5, 0.5, -0.08, 0.5));
+            } else if (id.contains("door") || id.contains("trapdoor")) {
+                boxes.add(id.contains("trapdoor")
+                        ? new Box(-0.5, 0.34, -0.5, 0.5, 0.5, 0.5)
+                        : new Box(-0.5, -0.5, -0.045, 0.5, 0.5, 0.045));
+            } else if (id.contains("flower") || id.contains("sapling") || id.contains("tulip")
+                    || id.contains("dandelion") || id.contains("poppy") || id.contains("orchid")) {
+                boxes.add(new Box(-0.045, -0.5, -0.045, 0.045, 0.12, 0.045));
+                boxes.add(new Box(-0.20, 0.12, -0.08, 0.20, 0.42, 0.08));
+            } else {
+                boxes.add(new Box(-0.5, -0.5, -0.5, 0.5, 0.5, 0.5));
+            }
             return boxes;
         }
         if (id.contains("spider") || id.contains("cave_spider")) {
@@ -177,6 +226,29 @@ public final class SceneWorldRenderer {
             result[i] = new Vec3(x3 + t.x, y3 + t.y, z2 + t.z);
         }
         return result;
+    }
+
+    private static void renderGround(Raster raster) {
+        int base = 0xFF26313B;
+        for (int x = -8; x < 8; x++) {
+            for (int z = -8; z < 8; z++) {
+                int tile = ((x + z) & 1) == 0 ? base : 0xFF293641;
+                raster.quad(new Vec3(x, -0.53, z), new Vec3(x + 1.0, -0.53, z),
+                        new Vec3(x + 1.0, -0.53, z + 1.0), new Vec3(x, -0.53, z + 1.0), tile, null);
+            }
+        }
+        int grid = 0xFF3C4B57;
+        for (int i = -8; i <= 8; i++) {
+            double offset = i;
+            raster.quad(new Vec3(offset - 0.012, -0.525, -8), new Vec3(offset + 0.012, -0.525, -8),
+                    new Vec3(offset + 0.012, -0.525, 8), new Vec3(offset - 0.012, -0.525, 8), grid, null);
+            raster.quad(new Vec3(-8, -0.525, offset - 0.012), new Vec3(8, -0.525, offset - 0.012),
+                    new Vec3(8, -0.525, offset + 0.012), new Vec3(-8, -0.525, offset + 0.012), grid, null);
+        }
+        raster.quad(new Vec3(-8, -0.52, -0.018), new Vec3(8, -0.52, -0.018),
+                new Vec3(8, -0.52, 0.018), new Vec3(-8, -0.52, 0.018), 0xFFB94D4D, null);
+        raster.quad(new Vec3(-0.018, -0.519, -8), new Vec3(0.018, -0.519, -8),
+                new Vec3(0.018, -0.519, 8), new Vec3(-0.018, -0.519, 8), 0xFF4C9AD0, null);
     }
 
     private static int materialColor(String assetId) {
