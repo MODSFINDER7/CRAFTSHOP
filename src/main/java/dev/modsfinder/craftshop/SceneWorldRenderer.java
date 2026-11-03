@@ -57,11 +57,11 @@ public final class SceneWorldRenderer {
                 }
                 if (endX >= startX && endY >= startY) {
                     bounds.put(object.id, new Bounds(startX, startY, endX, endY));
-                    if (object.id.equals(project.selectedObjectId)) {
-                        raster.selectionOutline(startX, startY, endX, endY);
-                    }
                 }
             }
+        }
+        if (project.selectedObjectId != null && !project.selectedObjectId.isBlank()) {
+            raster.selectionOutline(project.selectedObjectId);
         }
         return new Frame(w, h, pixels, objectIds, bounds);
     }
@@ -102,14 +102,48 @@ public final class SceneWorldRenderer {
             boxes.add(new Box(-0.5, -0.5, -0.5, 0.5, 0.5, 0.5));
             return boxes;
         }
-        if (id.contains("cow") || id.contains("pig") || id.contains("sheep") || id.contains("wolf")
-                || id.contains("cat") || id.contains("horse")) {
+        if (id.contains("spider") || id.contains("cave_spider")) {
+            boxes.add(new Box(-0.58, -0.12, -0.72, 0.58, 0.28, 0.58));
+            boxes.add(new Box(-0.32, -0.08, 0.42, 0.32, 0.34, 0.82));
+            for (int side : new int[]{-1, 1}) {
+                for (int leg = 0; leg < 4; leg++) {
+                    double z = -0.58 + leg * 0.34;
+                    double x = side * (0.62 + (leg % 2) * 0.12);
+                    boxes.add(new Box(Math.min(side * 0.34, x) - 0.055, -0.20,
+                            z - 0.06, Math.max(side * 0.34, x) + 0.055, -0.08, z + 0.06));
+                }
+            }
+        } else if (id.contains("creeper")) {
+            boxes.add(new Box(-0.28, -0.38, -0.20, 0.28, 0.42, 0.20));
+            boxes.add(new Box(-0.30, 0.42, -0.22, 0.30, 0.94, 0.22));
+            boxes.add(new Box(-0.28, -0.82, -0.20, -0.04, -0.38, 0.20));
+            boxes.add(new Box(0.04, -0.82, -0.20, 0.28, -0.38, 0.20));
+        } else if (id.contains("ghast")) {
+            boxes.add(new Box(-0.62, -0.55, -0.62, 0.62, 0.62, 0.62));
+            for (int i = 0; i < 9; i++) {
+                double x = -0.42 + (i % 3) * 0.42;
+                double z = -0.42 + (i / 3) * 0.42;
+                double length = 0.30 + ((i * 7) % 5) * 0.10;
+                boxes.add(new Box(x - 0.055, -0.55 - length, z - 0.055,
+                        x + 0.055, -0.55, z + 0.055));
+            }
+        } else if (id.contains("slime") || id.contains("magma_cube")) {
+            boxes.add(new Box(-0.48, -0.48, -0.48, 0.48, 0.48, 0.48));
+        } else if (id.contains("cow") || id.contains("pig") || id.contains("sheep") || id.contains("wolf")
+                || id.contains("cat") || id.contains("horse") || id.contains("goat") || id.contains("llama")) {
             boxes.add(new Box(-0.55, -0.15, -0.8, 0.55, 0.48, 0.55));
             boxes.add(new Box(-0.32, 0.05, 0.42, 0.32, 0.58, 0.88));
             boxes.add(new Box(-0.42, -0.5, -0.62, -0.18, -0.12, -0.38));
             boxes.add(new Box(0.18, -0.5, -0.62, 0.42, -0.12, -0.38));
             boxes.add(new Box(-0.42, -0.5, 0.28, -0.18, -0.12, 0.5));
             boxes.add(new Box(0.18, -0.5, 0.28, 0.42, -0.12, 0.5));
+        } else if (id.contains("enderman")) {
+            boxes.add(new Box(-0.20, -0.95, -0.14, 0.20, 0.45, 0.14));
+            boxes.add(new Box(-0.22, 0.45, -0.16, 0.22, 0.90, 0.16));
+            boxes.add(new Box(-0.38, -0.90, -0.10, -0.22, 0.42, 0.10));
+            boxes.add(new Box(0.22, -0.90, -0.10, 0.38, 0.42, 0.10));
+            boxes.add(new Box(-0.19, -1.55, -0.11, -0.02, -0.95, 0.11));
+            boxes.add(new Box(0.02, -1.55, -0.11, 0.19, -0.95, 0.11));
         } else {
             boxes.add(new Box(-0.28, -0.18, -0.18, 0.28, 0.58, 0.18));
             boxes.add(new Box(-0.22, 0.58, -0.22, 0.22, 1.02, 0.22));
@@ -253,13 +287,24 @@ public final class SceneWorldRenderer {
             }
             return drawn ? new Bounds(actualMinX,actualMinY,actualMaxX,actualMaxY) : null;
         }
-        void selectionOutline(int minX,int minY,int maxX,int maxY) {
-            int cyan=0xFF42E9F4;
-            for(int x=minX;x<=maxX;x++) {
-                set(x,minY,cyan); set(x,maxY,cyan);
+        void selectionOutline(String selectedId) {
+            int cyan = 0xFF42E9F4;
+            boolean[] edgePixels = new boolean[objectIds.length];
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    int index = y * width + x;
+                    if (!selectedId.equals(objectIds[index])) continue;
+                    if (x == 0 || x == width - 1 || y == 0 || y == height - 1
+                            || !selectedId.equals(objectIds[index - 1])
+                            || !selectedId.equals(objectIds[index + 1])
+                            || !selectedId.equals(objectIds[index - width])
+                            || !selectedId.equals(objectIds[index + width])) {
+                        edgePixels[index] = true;
+                    }
+                }
             }
-            for(int y=minY;y<=maxY;y++) {
-                set(minX,y,cyan); set(maxX,y,cyan);
+            for (int i = 0; i < edgePixels.length; i++) {
+                if (edgePixels[i]) pixels[i] = cyan;
             }
         }
         void set(int x,int y,int color) {
