@@ -7,6 +7,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -146,6 +147,13 @@ public final class SceneRenderScreen extends Screen {
         for (ProjectedObject object : projectObjects(bounds)) {
             SceneAssetRenderer.extract(graphics, object.object(), minecraft,
                     object.x(), object.y(), object.halfSize());
+            if (object.object().id.equals(project.selectedObjectId)) {
+                int outlineSize = Math.max(8, object.halfSize() + 5);
+                graphics.outline(object.x() - outlineSize, object.y() - outlineSize,
+                        outlineSize * 2, outlineSize * 2, 0xFF43E8F5);
+                graphics.fill(object.x() - 2, object.y() - outlineSize - 5,
+                        object.x() + 3, object.y() - outlineSize, 0xFF43E8F5);
+            }
         }
         drawPreviewHelp(graphics);
     }
@@ -199,6 +207,33 @@ public final class SceneRenderScreen extends Screen {
         if (project.camera == null) project.camera = new SceneProject.Camera();
         project.camera.yaw += yaw;
         project.camera.pitch = Math.max(-89.0F, Math.min(89.0F, project.camera.pitch + pitch));
+    }
+
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (parent == null || event.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !isReady()) {
+            return super.mouseClicked(event, doubleClick);
+        }
+        CanvasBounds bounds = canvasBounds(width, height, imageWidth, imageHeight);
+        List<ProjectedObject> projected = projectObjects(bounds);
+        ProjectedObject hit = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (int i = projected.size() - 1; i >= 0; i--) {
+            ProjectedObject candidate = projected.get(i);
+            double dx = event.x() - candidate.x();
+            double dy = event.y() - candidate.y();
+            double radius = Math.max(10.0, candidate.halfSize() + 7.0);
+            double distance = dx * dx + dy * dy;
+            if (distance <= radius * radius && distance < bestDistance) {
+                hit = candidate;
+                bestDistance = distance;
+            }
+        }
+        if (hit != null) {
+            project.selectedObjectId = hit.object().id;
+            return true;
+        }
+        return super.mouseClicked(event, doubleClick);
     }
 
     @Override

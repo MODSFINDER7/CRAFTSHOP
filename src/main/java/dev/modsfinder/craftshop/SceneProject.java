@@ -8,6 +8,7 @@ public final class SceneProject {
     public int formatVersion = 3;
     public String canvasImage = "";
     public String renderedImage = "";
+    public String selectedObjectId = "";
     public String name = "Untitled Scene";
     public Camera camera = new Camera();
     public List<SceneObject> objects = new ArrayList<>();

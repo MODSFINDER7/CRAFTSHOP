@@ -60,9 +60,11 @@ public final class StudioScreen extends Screen {
     private int panelBottom() { return this.height - 30; }
 
     private SceneProject.SceneObject selectedObject() {
-        if (selectedObjectId == null || project.objects == null) return null;
+        String targetId = selectedObjectId == null || selectedObjectId.isBlank()
+                ? project.selectedObjectId : selectedObjectId;
+        if (targetId == null || targetId.isBlank() || project.objects == null) return null;
         return project.objects.stream()
-                .filter(object -> selectedObjectId.equals(object.id))
+                .filter(object -> targetId.equals(object.id))
                 .findFirst().orElse(null);
     }
 
@@ -162,6 +164,7 @@ public final class StudioScreen extends Screen {
             int rowY = 102 + (i - start) * 24;
             addButton(label, listX, rowY, listW, 21, () -> {
                 selectedObjectId = id;
+                project.selectedObjectId = id;
                 status = "Selected " + object.name;
                 rebuild();
             });
@@ -343,6 +346,7 @@ public final class StudioScreen extends Screen {
             object.transform.x = project.objects.size() * 1.25F;
             project.objects.add(object);
             selectedObjectId = object.id;
+            project.selectedObjectId = object.id;
             scenePage = Math.max(0, (project.objects.size() - 1) / visibleObjectRows());
             status = (asset.entity() ? "Spawned " : "Placed ") + asset.id();
             rebuild();
@@ -430,6 +434,7 @@ public final class StudioScreen extends Screen {
         copy.transform.scaleZ = source.transform.scaleZ;
         project.objects.add(copy);
         selectedObjectId = copy.id;
+        project.selectedObjectId = copy.id;
         scenePage = Math.max(0, (project.objects.size() - 1) / visibleObjectRows());
         status = "Duplicated " + source.name;
         rebuild();
@@ -446,6 +451,7 @@ public final class StudioScreen extends Screen {
         project.objects.removeIf(object -> selected.id.equals(object.id));
         SceneAssetRenderer.forget(selected.id);
         selectedObjectId = null;
+        project.selectedObjectId = "";
         validateProject();
         status = "Deleted " + selected.name;
         rebuild();
