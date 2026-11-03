@@ -30,8 +30,8 @@ public final class SceneWorldRenderer {
     }
 
     public static Frame render(SceneProject project, int width, int height, Minecraft minecraft) {
-        int w = Math.max(64, Math.min(384, width));
-        int h = Math.max(64, Math.min(256, height));
+        int w = Math.max(64, Math.min(1024, width));
+        int h = Math.max(64, Math.min(1024, height));
         int[] pixels = new int[w * h];
         double[] depth = new double[w * h];
         String[] objectIds = new String[w * h];
@@ -357,6 +357,7 @@ public final class SceneWorldRenderer {
         final String[] objectIds;
         final CameraBasis camera;
         final double focal;
+        final Map<String, MutableBounds> trackedBounds = new HashMap<>();
         Raster(int width, int height, int[] pixels, double[] depth, String[] objectIds, CameraBasis camera) {
             this.width = width; this.height = height; this.pixels = pixels; this.depth = depth;
             this.objectIds = objectIds; this.camera = camera;
@@ -424,6 +425,7 @@ public final class SceneWorldRenderer {
                 depth[index]=z;
                 pixels[index]=color;
                 objectIds[index]=objectId;
+                trackedBounds.computeIfAbsent(objectId, ignored -> new MutableBounds()).include(x, y);
                 drawn=true;
                 actualMinX=Math.min(actualMinX,x); actualMinY=Math.min(actualMinY,y);
                 actualMaxX=Math.max(actualMaxX,x); actualMaxY=Math.max(actualMaxY,y);
@@ -431,17 +433,8 @@ public final class SceneWorldRenderer {
             return drawn ? new Bounds(actualMinX,actualMinY,actualMaxX,actualMaxY) : null;
         }
         Bounds objectBounds(String id) {
-            int minX = width, minY = height, maxX = -1, maxY = -1;
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    if (!id.equals(objectIds[y * width + x])) continue;
-                    minX = Math.min(minX, x);
-                    minY = Math.min(minY, y);
-                    maxX = Math.max(maxX, x);
-                    maxY = Math.max(maxY, y);
-                }
-            }
-            return maxX < minX ? null : new Bounds(minX, minY, maxX, maxY);
+            MutableBounds bounds = trackedBounds.get(id);
+            return bounds == null ? null : bounds.toBounds();
         }
         void selectionOutline(String selectedId) {
             int cyan = 0xFF42E9F4;
