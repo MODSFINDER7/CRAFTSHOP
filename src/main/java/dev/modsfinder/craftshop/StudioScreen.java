@@ -114,6 +114,8 @@ public final class StudioScreen extends Screen {
         addButton("Pit+", buttonX, cameraY + 104, smallW, 20, () -> rotateCamera(0.0F, 10.0F));
         addButton("Zoom+", buttonX + 44, cameraY + 104, smallW, 20, () -> zoomCamera(0.1F));
         addButton("Zoom-", buttonX + 88, cameraY + 104, smallW, 20, () -> zoomCamera(-0.1F));
+        addButton("AO: " + (project.ambientOcclusion ? "ON" : "OFF"), buttonX,
+                cameraY + 132, buttonWidth, 20, this::toggleAmbientOcclusion);
 
         int mx = middleX() + 10;
         int pairW = 52;
@@ -535,6 +537,13 @@ public final class StudioScreen extends Screen {
         checkpoint();
         project.camera = new SceneProject.Camera();
         status = "Spectator camera reset";
+        rebuild();
+    }
+
+    private void toggleAmbientOcclusion() {
+        checkpoint();
+        project.ambientOcclusion = !project.ambientOcclusion;
+        status = "Screen-space ambient occlusion " + (project.ambientOcclusion ? "enabled" : "disabled");
         rebuild();
     }
 
