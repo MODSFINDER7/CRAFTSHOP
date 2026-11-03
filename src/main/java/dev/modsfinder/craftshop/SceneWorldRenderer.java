@@ -49,8 +49,8 @@ public final class SceneWorldRenderer {
         CameraBasis basis = new CameraBasis(camera);
         Raster raster = new Raster(w, h, pixels, depth, objectIds, basis);
 
-        if (project.objects != null) {
-            for (SceneProject.SceneObject object : project.objects) {
+        SceneWorld world = SceneWorld.from(project);
+        for (SceneProject.SceneObject object : world.renderObjects(camera)) {
                 if (object == null || !object.visible || object.transform == null) continue;
                 int startX = w, startY = h, endX = -1, endY = -1;
                 boolean renderedModel = false;
@@ -93,7 +93,6 @@ public final class SceneWorldRenderer {
                 if (endX >= startX && endY >= startY) {
                     bounds.put(object.id, new Bounds(startX, startY, endX, endY));
                 }
-            }
         }
         if (project.selectedObjectId != null && !project.selectedObjectId.isBlank()) {
             raster.selectionOutline(project.selectedObjectId);
