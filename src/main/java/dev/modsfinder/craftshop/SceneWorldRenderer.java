@@ -539,5 +539,18 @@ public final class SceneWorldRenderer {
         }
         static int clamp(int v,int min,int max) { return Math.max(min,Math.min(max,v)); }
     }
+    private static final class MutableBounds {
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+        void include(int x, int y) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+        Bounds toBounds() {
+            return maxX < minX ? null : new Bounds(minX, minY, maxX, maxY);
+        }
+    }
     private record ScreenPoint(double x,double y,double z) {}
 }
