@@ -532,8 +532,15 @@ public final class Canvas2DScreen extends Screen {
 
     private Path resolveBackgroundPath() {
         if (document.backgroundImage == null || document.backgroundImage.isBlank()) return null;
-        Path stored = Path.of(document.backgroundImage);
-        return stored.isAbsolute() ? stored : directory().resolve(stored).normalize();
+        try {
+            Path stored = Path.of(document.backgroundImage);
+            if (stored.isAbsolute()) return stored.normalize();
+            Path root = directory().toAbsolutePath().normalize();
+            Path resolved = root.resolve(stored).normalize();
+            return resolved.startsWith(root) ? resolved : null;
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     private void applyImageFilter(String filter) {
@@ -738,9 +745,24 @@ public final class Canvas2DScreen extends Screen {
             String requestedName = projectNameField == null ? document.name : projectNameField.getValue().trim();
             if (requestedName == null || requestedName.isBlank()) requestedName = "Untitled Canvas";
             document.name = requestedName;
-            String safe = document.name.replaceAll("[^A-Za-z0-9._-]", "_");
-            Path file = directory().resolve(safe + ".craftshop2d");
-            Files.writeString(file, GSON.toJson(document));
+            String safe = document.name.replaceAll("[^A-Za-z0-9._-]", "_").replaceAll("^[.]+", "");
+            if (safe.isBlank()) safe = "Untitled_Canvas";
+            Path root = directory().toAbsolutePath().normalize();
+            Path file = root.resolve(safe + ".craftshop2d").normalize();
+            if (!file.getParent().equals(root)) throw new IOException("Invalid canvas project path");
+            Path temporary = file.resolveSibling(file.getFileName() + ".tmp");
+            try {
+                Files.writeString(temporary, GSON.toJson(document));
+                try {
+                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                            java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+                } catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
+                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temporary);
+            }
+            if (projectNameField != null) projectNameField.setValue(document.name);
             status = "Saved " + file.getFileName();
         } catch (IOException exception) {
             CraftShop.LOGGER.error("Could not save CraftShop 2D document", exception);
@@ -754,7 +776,12 @@ public final class Canvas2DScreen extends Screen {
 
     private void loadDocument(Path selectedFile) {
         try {
-            CanvasDocument loaded = GSON.fromJson(Files.readString(selectedFile), CanvasDocument.class);
+            Path root = directory().toAbsolutePath().normalize();
+            Path normalized = selectedFile.toAbsolutePath().normalize();
+            if (!normalized.startsWith(root) || !normalized.getFileName().toString().endsWith(".craftshop2d")) {
+                throw new IOException("Invalid CraftShop 2D project path");
+            }
+            CanvasDocument loaded = GSON.fromJson(Files.readString(normalized), CanvasDocument.class);
             if (loaded == null || loaded.layers == null || loaded.layers.isEmpty()) {
                 status = "Invalid canvas file";
                 return;

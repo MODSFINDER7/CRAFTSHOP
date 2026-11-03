@@ -192,6 +192,7 @@ public final class SceneWorldRenderer {
     private static final class CameraBasis {
         final double rx, rz, ux, uy, uz, fx, fy, fz;
         final double x, y, z;
+        final double zoom;
         CameraBasis(SceneProject.Camera c) {
             double yaw = Math.toRadians(c.yaw), pitch = Math.toRadians(c.pitch);
             double sy = Math.sin(yaw), cy = Math.cos(yaw), sp = Math.sin(pitch), cp = Math.cos(pitch);
@@ -199,6 +200,7 @@ public final class SceneWorldRenderer {
             fx = -sy * cp; fy = -sp; fz = -cy * cp;
             ux = -sy * sp; uy = cp; uz = -cy * sp;
             x = c.x; y = c.y; z = c.z;
+            zoom = Math.max(0.2D, Math.min(4.0D, c.zoom));
         }
         CameraPoint transform(Vec3 p) {
             double dx = p.x - x, dy = p.y - y, dz = p.z - z;
@@ -215,7 +217,7 @@ public final class SceneWorldRenderer {
         final double focal;
         Raster(int width, int height, int[] pixels, double[] depth, CameraBasis camera) {
             this.width = width; this.height = height; this.pixels = pixels; this.depth = depth; this.camera = camera;
-            this.focal = Math.min(width, height) * 0.92;
+            this.focal = Math.min(width, height) * 0.92 * camera.zoom;
         }
         Bounds quad(Vec3 a, Vec3 b, Vec3 c, Vec3 d, int color, String objectId) {
             CameraPoint ca = camera.transform(a), cb = camera.transform(b), cc = camera.transform(c), cd = camera.transform(d);
