@@ -51,6 +51,13 @@ public final class Canvas2DScreen extends Screen {
     private boolean drawing;
     private boolean cropping;
     private boolean shaping;
+    private boolean selecting;
+    private boolean movingSelection;
+    private boolean scalingSelection;
+    private boolean hasSelection;
+    private float selectionStartX, selectionStartY, selectionEndX, selectionEndY;
+    private float selectionLeft, selectionTop, selectionRight, selectionBottom;
+    private float selectionLastX, selectionLastY;
     private float shapeStartX;
     private float shapeStartY;
     private float shapeEndX;
@@ -92,7 +99,7 @@ public final class Canvas2DScreen extends Screen {
         int y = 70;
         int toolStep = this.height < 600 ? 18 : 24;
         int controlStep = this.height < 480 ? 18 : this.height < 600 ? 20 : 24;
-        int controlsTop = y + toolStep * 7 + 8;
+        int controlsTop = y + toolStep * 8 + 8;
         addRenderableWidget(toolButton("Brush", x, y));
         addRenderableWidget(toolButton("Eraser", x, y + toolStep));
         addRenderableWidget(toolButton("Text", x, y + toolStep * 2));
@@ -100,6 +107,7 @@ public final class Canvas2DScreen extends Screen {
         addRenderableWidget(toolButton("Line", x, y + toolStep * 4));
         addRenderableWidget(toolButton("Rectangle", x, y + toolStep * 5));
         addRenderableWidget(toolButton("Ellipse", x, y + toolStep * 6));
+        addRenderableWidget(toolButton("Select", x, y + toolStep * 7));
 
         addRenderableWidget(Button.builder(Component.literal("Size -"), b -> brushSize = Math.max(1, brushSize - 2))
                 .bounds(x, controlsTop, 78, 20).build());
@@ -307,6 +315,21 @@ public final class Canvas2DScreen extends Screen {
             graphics.outline(Math.min(cropStartX, cropEndX), Math.min(cropStartY, cropEndY),
                     Math.abs(cropEndX - cropStartX), Math.abs(cropEndY - cropStartY), 0xFFFF9800);
         }
+        if ("Select".equals(tool) && (selecting || hasSelection)) {
+            float left = selecting ? Math.min(selectionStartX, selectionEndX) : selectionLeft;
+            float top = selecting ? Math.min(selectionStartY, selectionEndY) : selectionTop;
+            float right = selecting ? Math.max(selectionStartX, selectionEndX) : selectionRight;
+            float bottom = selecting ? Math.max(selectionStartY, selectionEndY) : selectionBottom;
+            int sx = Math.round(left);
+            int sy = Math.round(top);
+            int sw = Math.max(1, Math.round(right - left));
+            int sh = Math.max(1, Math.round(bottom - top));
+            graphics.outline(sx, sy, sw, sh, 0xFF00A6D8);
+            if (hasSelection && !selecting) {
+                graphics.fill(Math.round(right) - 3, Math.round(bottom) - 3,
+                        Math.round(right) + 4, Math.round(bottom) + 4, 0xFF00D8FF);
+            }
+        }
         graphics.fill(0, height - 8, width, height, 0xFF0B0E13);
         graphics.text(font, "CRAFTSHOP 2D  •  " + document.name + "  •  " + document.layers.size() + " layers",
                 10, height - 7, 0xFF7F8D9C, false);
@@ -383,6 +406,28 @@ public final class Canvas2DScreen extends Screen {
         double mouseY = event.y();
         int button = event.button();
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && insideCanvas(mouseX, mouseY)) {
+            if ("Select".equals(tool)) {
+                float px = (float) mouseX;
+                float py = (float) mouseY;
+                if (hasSelection && Math.abs(px - selectionRight) <= 8.0F
+                        && Math.abs(py - selectionBottom) <= 8.0F) {
+                    scalingSelection = true;
+                    selectionLastX = px;
+                    selectionLastY = py;
+                    checkpoint();
+                } else if (hasSelection && insideSelection(px, py)) {
+                    movingSelection = true;
+                    selectionLastX = px;
+                    selectionLastY = py;
+                    checkpoint();
+                } else {
+                    selecting = true;
+                    hasSelection = false;
+                    selectionStartX = selectionEndX = px;
+                    selectionStartY = selectionEndY = py;
+                }
+                return true;
+            }
             if ("Crop".equals(tool)) {
                 cropping = true;
                 cropStartX = cropEndX = (int) mouseX;
@@ -431,6 +476,23 @@ public final class Canvas2DScreen extends Screen {
         double mouseY = event.y();
         int button = event.button();
         if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT) return super.mouseDragged(event, dragX, dragY);
+        if (selecting) {
+            selectionEndX = Math.max(canvasLeft(), Math.min(canvasRight() - 1, (float) mouseX));
+            selectionEndY = Math.max(canvasTop(), Math.min(canvasBottom() - 1, (float) mouseY));
+            return true;
+        }
+        if (movingSelection) {
+            float x = (float) mouseX;
+            float y = (float) mouseY;
+            translateSelection(x - selectionLastX, y - selectionLastY);
+            selectionLastX = x;
+            selectionLastY = y;
+            return true;
+        }
+        if (scalingSelection) {
+            scaleSelectionTo((float) mouseX, (float) mouseY);
+            return true;
+        }
         if (cropping) {
             cropEndX = clamp((int) mouseX, canvasLeft(), canvasRight());
             cropEndY = clamp((int) mouseY, canvasTop(), canvasBottom());
@@ -455,6 +517,27 @@ public final class Canvas2DScreen extends Screen {
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         int button = event.button();
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && selecting) {
+            selecting = false;
+            selectionLeft = Math.min(selectionStartX, selectionEndX);
+            selectionTop = Math.min(selectionStartY, selectionEndY);
+            selectionRight = Math.max(selectionStartX, selectionEndX);
+            selectionBottom = Math.max(selectionStartY, selectionEndY);
+            hasSelection = selectionRight - selectionLeft >= 6.0F
+                    && selectionBottom - selectionTop >= 6.0F;
+            status = hasSelection ? "Selection created on " + currentLayer().name : "Selection cancelled";
+            return true;
+        }
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && movingSelection) {
+            movingSelection = false;
+            status = "Selection moved";
+            return true;
+        }
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && scalingSelection) {
+            scalingSelection = false;
+            status = "Selection resized";
+            return true;
+        }
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && shaping) {
             shaping = false;
             if (Math.hypot(shapeEndX - shapeStartX, shapeEndY - shapeStartY) > 2.0) {
@@ -487,6 +570,83 @@ public final class Canvas2DScreen extends Screen {
             return true;
         }
         return super.mouseReleased(event);
+    }
+
+    private boolean insideSelection(float x, float y) {
+        return x >= selectionLeft && x <= selectionRight
+                && y >= selectionTop && y <= selectionBottom;
+    }
+
+    private void translateSelection(float dx, float dy) {
+        if (!hasSelection || (dx == 0.0F && dy == 0.0F)) return;
+        dx = Math.max(canvasLeft() - selectionLeft,
+                Math.min(canvasRight() - selectionRight, dx));
+        dy = Math.max(canvasTop() - selectionTop,
+                Math.min(canvasBottom() - selectionBottom, dy));
+        if (dx == 0.0F && dy == 0.0F) return;
+
+        Layer layer = currentLayer();
+        for (Stroke stroke : layer.strokes) {
+            for (Point point : stroke.points) {
+                if (insideSelection(point.x, point.y)) {
+                    point.x += dx;
+                    point.y += dy;
+                }
+            }
+        }
+        for (ShapeItem item : layer.shapes) {
+            if (insideSelection(item.x1, item.y1) && insideSelection(item.x2, item.y2)) {
+                item.x1 += dx; item.x2 += dx;
+                item.y1 += dy; item.y2 += dy;
+            }
+        }
+        for (TextItem item : layer.texts) {
+            if (insideSelection(item.x, item.y)) {
+                item.x += dx;
+                item.y += dy;
+            }
+        }
+        selectionLeft += dx; selectionRight += dx;
+        selectionTop += dy; selectionBottom += dy;
+    }
+
+    private void scaleSelectionTo(float mouseX, float mouseY) {
+        if (!hasSelection) return;
+        float oldWidth = Math.max(1.0F, selectionRight - selectionLeft);
+        float oldHeight = Math.max(1.0F, selectionBottom - selectionTop);
+        float newRight = Math.max(selectionLeft + 6.0F,
+                Math.min(canvasRight() - 1.0F, mouseX));
+        float newBottom = Math.max(selectionTop + 6.0F,
+                Math.min(canvasBottom() - 1.0F, mouseY));
+        float scaleX = (newRight - selectionLeft) / oldWidth;
+        float scaleY = (newBottom - selectionTop) / oldHeight;
+        if (Math.abs(scaleX - 1.0F) < 0.0001F && Math.abs(scaleY - 1.0F) < 0.0001F) return;
+
+        Layer layer = currentLayer();
+        for (Stroke stroke : layer.strokes) {
+            for (Point point : stroke.points) {
+                if (insideSelection(point.x, point.y)) {
+                    point.x = selectionLeft + (point.x - selectionLeft) * scaleX;
+                    point.y = selectionTop + (point.y - selectionTop) * scaleY;
+                }
+            }
+        }
+        for (ShapeItem item : layer.shapes) {
+            if (insideSelection(item.x1, item.y1) && insideSelection(item.x2, item.y2)) {
+                item.x1 = selectionLeft + (item.x1 - selectionLeft) * scaleX;
+                item.x2 = selectionLeft + (item.x2 - selectionLeft) * scaleX;
+                item.y1 = selectionTop + (item.y1 - selectionTop) * scaleY;
+                item.y2 = selectionTop + (item.y2 - selectionTop) * scaleY;
+            }
+        }
+        for (TextItem item : layer.texts) {
+            if (insideSelection(item.x, item.y)) {
+                item.x = selectionLeft + (item.x - selectionLeft) * scaleX;
+                item.y = selectionTop + (item.y - selectionTop) * scaleY;
+            }
+        }
+        selectionRight = newRight;
+        selectionBottom = newBottom;
     }
 
     private Layer currentLayer() {
