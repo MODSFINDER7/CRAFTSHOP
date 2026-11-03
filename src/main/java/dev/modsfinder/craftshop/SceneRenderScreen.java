@@ -22,6 +22,7 @@ public final class SceneRenderScreen extends Screen {
     private int imageHeight = 1;
     private String error = "";
     private SceneWorldRenderer.Frame sceneFrame;
+    private boolean draggingObject;
 
     public SceneRenderScreen(SceneProject project, Path imagePath) {
         this(project, imagePath, null);
@@ -146,7 +147,7 @@ public final class SceneRenderScreen extends Screen {
     private void drawPreviewHelp(GuiGraphicsExtractor graphics) {
         if (parent == null) return;
         graphics.fill(8, height - 31, width - 8, height - 8, 0xAA10151D);
-        graphics.text(font, "CLICK: Select  •  WASD: Camera  •  IJKL/UO: Move Object  •  SHIFT+IJKL/UO: Rotate  •  +/-: Scale  •  DRAG: Look  •  ESC: Back",
+        graphics.text(font, "CLICK: Select  •  WASD: Camera  •  LEFT DRAG: Move Object  •  RIGHT DRAG: Look  •  IJKL/UO: Move  •  SHIFT+IJKL/UO: Rotate  •  +/-: Scale  •  ESC: Back",
                 14, height - 22, 0xFFFFFFFF, false);
     }
 
@@ -207,6 +208,9 @@ public final class SceneRenderScreen extends Screen {
             int localY = (int) ((event.y() - bounds.y()) * sceneFrame.height() / bounds.height());
             String selected = SceneWorldRenderer.hitTest(sceneFrame, localX, localY);
             project.selectedObjectId = selected == null ? "" : selected;
+            SceneProject.SceneObject object = selected == null ? null : project.objects.stream()
+                    .filter(candidate -> selected.equals(candidate.id)).findFirst().orElse(null);
+            draggingObject = object != null && !object.locked;
             return true;
         }
         return super.mouseClicked(event, doubleClick);
@@ -215,8 +219,46 @@ public final class SceneRenderScreen extends Screen {
     @Override
     public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) {
         if (parent == null) return super.mouseDragged(event, deltaX, deltaY);
-        rotateCamera((float) (deltaX * 0.45F), (float) (deltaY * 0.45F));
-        return true;
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && draggingObject) {
+            SceneProject.SceneObject selected = project.objects.stream()
+                    .filter(object -> project.selectedObjectId.equals(object.id)).findFirst().orElse(null);
+            if (selected != null && !selected.locked) {
+                CanvasBounds bounds = canvasBounds(width, height, imageWidth, imageHeight);
+                SceneProject.Camera camera = project.camera == null ? new SceneProject.Camera() : project.camera;
+                double yaw = Math.toRadians(camera.yaw);
+                double pitch = Math.toRadians(camera.pitch);
+                double depth = Math.max(0.15D,
+                        (selected.transform.x - camera.x) * -Math.sin(yaw) * Math.cos(pitch)
+                        + (selected.transform.y - camera.y) * -Math.sin(pitch)
+                        + (selected.transform.z - camera.z) * -Math.cos(yaw) * Math.cos(pitch));
+                double unitsPerPixel = depth / (Math.max(1, Math.min(bounds.width(), bounds.height())) * 0.92D
+                        * Math.max(0.2D, Math.min(4.0D, camera.zoom)));
+                double worldRightX = Math.cos(yaw);
+                double worldRightZ = -Math.sin(yaw);
+                double worldUpX = -Math.sin(yaw) * Math.sin(pitch);
+                double worldUpY = Math.cos(pitch);
+                double worldUpZ = -Math.cos(yaw) * Math.sin(pitch);
+                double horizontal = deltaX * unitsPerPixel;
+                double vertical = -deltaY * unitsPerPixel;
+                selected.transform.x += (float) (worldRightX * horizontal + worldUpX * vertical);
+                selected.transform.y += (float) (worldUpY * vertical);
+                selected.transform.z += (float) (worldRightZ * horizontal + worldUpZ * vertical);
+                sceneFrame = null;
+            }
+            return true;
+        }
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+            rotateCamera((float) (deltaX * 0.45F), (float) (deltaY * 0.45F));
+            sceneFrame = null;
+            return true;
+        }
+        return super.mouseDragged(event, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) draggingObject = false;
+        return super.mouseReleased(event);
     }
 
     @Override
