@@ -127,7 +127,7 @@ public final class ProjectManager {
     }
 
 
-    private static void normalizeProject(SceneProject project) throws IOException {
+    static void normalizeProject(SceneProject project) throws IOException {
         if (project.camera == null) project.camera = new SceneProject.Camera();
         if (project.objects == null) project.objects = new java.util.ArrayList<>();
         if (project.name == null || project.name.isBlank()) project.name = "Untitled Scene";
