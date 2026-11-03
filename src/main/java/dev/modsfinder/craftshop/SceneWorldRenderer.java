@@ -319,14 +319,40 @@ public final class SceneWorldRenderer {
         }
         Bounds quad(Vec3 a, Vec3 b, Vec3 c, Vec3 d, int color, String objectId) {
             CameraPoint ca = camera.transform(a), cb = camera.transform(b), cc = camera.transform(c), cd = camera.transform(d);
-            if (ca.z <= NEAR || cb.z <= NEAR || cc.z <= NEAR || cd.z <= NEAR) return null;
-            ScreenPoint pa = project(ca), pb = project(cb), pc = project(cc), pd = project(cd);
-            Bounds first = triangle(pa, pb, pc, color, objectId);
-            Bounds second = triangle(pa, pc, pd, color, objectId);
+            Bounds first = clippedTriangle(ca, cb, cc, color, objectId);
+            Bounds second = clippedTriangle(ca, cc, cd, color, objectId);
             if (first == null) return second;
             if (second == null) return first;
             return new Bounds(Math.min(first.minX, second.minX), Math.min(first.minY, second.minY),
                     Math.max(first.maxX, second.maxX), Math.max(first.maxY, second.maxY));
+        }
+        Bounds clippedTriangle(CameraPoint a, CameraPoint b, CameraPoint c, int color, String objectId) {
+            List<CameraPoint> input = List.of(a, b, c);
+            List<CameraPoint> clipped = new ArrayList<>(4);
+            CameraPoint previous = input.get(input.size() - 1);
+            boolean previousInside = previous.z > NEAR;
+            for (CameraPoint current : input) {
+                boolean currentInside = current.z > NEAR;
+                if (currentInside != previousInside) {
+                    double t = (NEAR - previous.z) / (current.z - previous.z);
+                    clipped.add(new CameraPoint(previous.x + (current.x - previous.x) * t,
+                            previous.y + (current.y - previous.y) * t, NEAR + 0.00001D));
+                }
+                if (currentInside) clipped.add(current);
+                previous = current;
+                previousInside = currentInside;
+            }
+            if (clipped.size() < 3) return null;
+            ScreenPoint origin = project(clipped.get(0));
+            Bounds combined = null;
+            for (int i = 1; i < clipped.size() - 1; i++) {
+                Bounds part = triangle(origin, project(clipped.get(i)), project(clipped.get(i + 1)), color, objectId);
+                if (part == null) continue;
+                combined = combined == null ? part : new Bounds(
+                        Math.min(combined.minX, part.minX), Math.min(combined.minY, part.minY),
+                        Math.max(combined.maxX, part.maxX), Math.max(combined.maxY, part.maxY));
+            }
+            return combined;
         }
         ScreenPoint project(CameraPoint p) {
             return new ScreenPoint(width * 0.5 + p.x * focal / p.z,
