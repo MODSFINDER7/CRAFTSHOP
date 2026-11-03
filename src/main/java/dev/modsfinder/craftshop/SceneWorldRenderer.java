@@ -96,6 +96,9 @@ public final class SceneWorldRenderer {
                     bounds.put(object.id, new Bounds(startX, startY, endX, endY));
                 }
         }
+        // Apply a depth-buffer contact pass after geometry is complete so every
+        // opaque model contributes to occlusion, regardless of draw order.
+        raster.applyAmbientOcclusion();
         if (project.selectedObjectId != null && !project.selectedObjectId.isBlank()) {
             raster.selectionOutline(project.selectedObjectId);
         }
@@ -401,20 +404,27 @@ public final class SceneWorldRenderer {
     }
 
     private static float faceBrightness(int face) {
-        return switch (face) {
-            case 0 -> 0.52F;
-            case 1 -> 1.0F;
-            case 2 -> 0.70F;
-            case 3 -> 0.88F;
-            case 4 -> 0.96F;
-            case 5 -> 0.62F;
-            default -> 0.82F;
-        };
+        // A stable studio key light from above and slightly north-west,
+        // combined with a neutral ambient term for readable unlit faces.
+        double nx = 0.0D, ny = 0.0D, nz = 0.0D;
+        switch (face) {
+            case 0 -> ny = -1.0D; // DOWN
+            case 1 -> ny = 1.0D;  // UP
+            case 2 -> nz = -1.0D; // NORTH
+            case 3 -> nz = 1.0D;  // SOUTH
+            case 4 -> nx = -1.0D; // WEST
+            case 5 -> nx = 1.0D;  // EAST
+            default -> { return 0.82F; }
+        }
+        double lightX = -0.20D;
+        double lightY = 0.96D;
+        double lightZ = -0.20D;
+        double dot = Math.max(0.0D, nx * lightX + ny * lightY + nz * lightZ);
+        return (float) (0.58D + 0.42D * dot);
     }
 
     private static int shade(int color, int face) {
-        double[] factors = {0.78, 0.62, 0.70, 0.88, 1.0, 0.52};
-        double factor = factors[face % factors.length];
+        double factor = faceBrightness(face);
         int a = color >>> 24;
         int r = (int) (((color >>> 16) & 255) * factor);
         int g = (int) (((color >>> 8) & 255) * factor);
@@ -461,6 +471,52 @@ public final class SceneWorldRenderer {
             this.objectIds = objectIds; this.camera = camera;
             this.focal = Math.min(width, height) * 0.92 * camera.zoom;
         }
+
+        /**
+         * Screen-space contact shading derived from the finished depth buffer.
+         * This deliberately avoids inventing world geometry or modifying the
+         * source PNG; it darkens only visible opaque surfaces near depth edges.
+         */
+        void applyAmbientOcclusion() {
+            if (width < 3 || height < 3) return;
+            final int[] offsetX = {-1, 0, 1, -1, 1, -1, 0, 1};
+            final int[] offsetY = {-1, -1, -1, 0, 0, 1, 1, 1};
+
+            for (int y = 1; y < height - 1; y++) {
+                int row = y * width;
+                for (int x = 1; x < width - 1; x++) {
+                    int index = row + x;
+                    int color = pixels[index];
+                    double centerDepth = depth[index];
+                    if ((color >>> 24) < 250 || !Double.isFinite(centerDepth)) continue;
+
+                    double occlusion = 0.0D;
+                    double bias = Math.max(0.012D, centerDepth * 0.0025D);
+                    double falloff = Math.max(0.08D, centerDepth * 0.075D);
+                    for (int direction = 0; direction < offsetX.length; direction++) {
+                        for (int radius = 1; radius <= 2; radius++) {
+                            int sampleIndex = (y + offsetY[direction] * radius) * width
+                                    + x + offsetX[direction] * radius;
+                            double sampleDepth = depth[sampleIndex];
+                            if (!Double.isFinite(sampleDepth)) continue;
+                            double depthDelta = centerDepth - sampleDepth;
+                            if (depthDelta <= bias) continue;
+                            double horizon = Math.min(1.0D, (depthDelta - bias) / falloff);
+                            occlusion += horizon * (radius == 1 ? 1.0D : 0.45D);
+                        }
+                    }
+
+                    if (occlusion <= 0.0D) continue;
+                    double factor = 1.0D - Math.min(0.27D, occlusion * 0.024D);
+                    int alpha = (color >>> 24) & 255;
+                    int red = clamp((int) Math.round(((color >>> 16) & 255) * factor), 0, 255);
+                    int green = clamp((int) Math.round(((color >>> 8) & 255) * factor), 0, 255);
+                    int blue = clamp((int) Math.round((color & 255) * factor), 0, 255);
+                    pixels[index] = (alpha << 24) | (red << 16) | (green << 8) | blue;
+                }
+            }
+        }
+
         void texturedQuad(Vec3 a, Vec3 b, Vec3 c, Vec3 d, TextureAtlasSprite sprite,
                           BufferedImage texture, float[][] uv, float brightness,
                           int fallbackColor, String objectId) {
