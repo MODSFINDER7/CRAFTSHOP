@@ -106,9 +106,9 @@ public final class SceneWorld {
     }
 
     /**
-     * Returns visible objects in stable near-to-far chunk order. Individual
-     * object visibility is applied here so hidden objects never enter rendering
-     * or hit-test buffers.
+     * Returns visible objects in stable far-to-near camera-depth order.
+     * Back-to-front ordering is required for correct blending of translucent
+     * textures; the rasterizer's depth buffer still resolves opaque geometry.
      */
     public List<SceneProject.SceneObject> renderObjects(SceneProject.Camera camera) {
         if (chunks.isEmpty()) return List.of();
@@ -137,11 +137,16 @@ public final class SceneWorld {
                 if (object.visible && insideCameraFrustum(object, camera)) visible.add(object);
             }
         }
+        double yaw = camera == null ? 0.0D : Math.toRadians(camera.yaw);
+        double pitch = camera == null ? 0.0D : Math.toRadians(camera.pitch);
+        double forwardX = -Math.sin(yaw) * Math.cos(pitch);
+        double forwardY = -Math.sin(pitch);
+        double forwardZ = -Math.cos(yaw) * Math.cos(pitch);
         visible.sort(Comparator.comparingDouble((SceneProject.SceneObject object) -> {
             double dx = object.transform.x - cameraX;
             double dy = object.transform.y - cameraY;
             double dz = object.transform.z - cameraZ;
-            return dx * dx + dy * dy + dz * dz;
+            return dx * forwardX + dy * forwardY + dz * forwardZ;
         }).reversed());
         return visible;
     }
