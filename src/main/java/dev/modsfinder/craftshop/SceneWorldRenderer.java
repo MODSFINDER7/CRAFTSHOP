@@ -30,6 +30,7 @@ public final class SceneWorldRenderer {
     private static final double NEAR = 0.08D;
     private static final Map<ResourceManager, Map<net.minecraft.resources.Identifier, BufferedImage>> SPRITE_IMAGES = new WeakHashMap<>();
     private static final Map<ResourceManager, Map<net.minecraft.resources.Identifier, List<CachedBlockQuad>>> BLOCK_MESHES = new WeakHashMap<>();
+    private static Object cachedModelManager;
 
     private SceneWorldRenderer() {}
 
@@ -173,7 +174,15 @@ public final class SceneWorldRenderer {
     private static List<CachedBlockQuad> cachedBlockMesh(Minecraft minecraft,
             net.minecraft.resources.Identifier id, BlockState state, String assetId) {
         ResourceManager manager = minecraft.getResourceManager();
+        Object modelManager = minecraft.getModelManager();
         synchronized (BLOCK_MESHES) {
+            if (cachedModelManager != modelManager) {
+                BLOCK_MESHES.clear();
+                synchronized (SPRITE_IMAGES) {
+                    SPRITE_IMAGES.clear();
+                }
+                cachedModelManager = modelManager;
+            }
             Map<net.minecraft.resources.Identifier, List<CachedBlockQuad>> cache =
                     BLOCK_MESHES.computeIfAbsent(manager, ignored -> new HashMap<>());
             return cache.computeIfAbsent(id, ignored -> buildBlockMesh(minecraft, state, assetId));
