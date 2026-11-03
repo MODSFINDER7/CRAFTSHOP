@@ -476,6 +476,32 @@ public final class SceneWorldRenderer {
                         sprite, texture, brightness, objectId);
             }
         }
+        private static int blendOver(int source, int destination) {
+            int sourceAlpha = (source >>> 24) & 255;
+            if (sourceAlpha == 255 || destination == 0) return source;
+            int destinationAlpha = (destination >>> 24) & 255;
+            int inverseSourceAlpha = 255 - sourceAlpha;
+            int outputAlpha = sourceAlpha + (destinationAlpha * inverseSourceAlpha + 127) / 255;
+            if (outputAlpha == 0) return 0;
+            int sourceRed = (source >>> 16) & 255;
+            int sourceGreen = (source >>> 8) & 255;
+            int sourceBlue = source & 255;
+            int destinationRed = (destination >>> 16) & 255;
+            int destinationGreen = (destination >>> 8) & 255;
+            int destinationBlue = destination & 255;
+            int red = (sourceRed * sourceAlpha
+                    + (destinationRed * destinationAlpha * inverseSourceAlpha + 127) / 255
+                    + outputAlpha / 2) / outputAlpha;
+            int green = (sourceGreen * sourceAlpha
+                    + (destinationGreen * destinationAlpha * inverseSourceAlpha + 127) / 255
+                    + outputAlpha / 2) / outputAlpha;
+            int blue = (sourceBlue * sourceAlpha
+                    + (destinationBlue * destinationAlpha * inverseSourceAlpha + 127) / 255
+                    + outputAlpha / 2) / outputAlpha;
+            return (outputAlpha << 24) | (clamp(red, 0, 255) << 16)
+                    | (clamp(green, 0, 255) << 8) | clamp(blue, 0, 255);
+        }
+
         void texturedTriangle(ScreenPoint a, ScreenPoint b, ScreenPoint c,
                               float[] uvA, float[] uvB, float[] uvC,
                               TextureAtlasSprite sprite, BufferedImage texture,
@@ -515,8 +541,13 @@ public final class SceneWorldRenderer {
                 red = clamp((int) (red * brightness), 0, 255);
                 green = clamp((int) (green * brightness), 0, 255);
                 blue = clamp((int) (blue * brightness), 0, 255);
-                pixels[index] = (alpha << 24) | (red << 16) | (green << 8) | blue;
-                depth[index] = z;
+                int shadedSample = (alpha << 24) | (red << 16) | (green << 8) | blue;
+                if (alpha == 255) {
+                    pixels[index] = shadedSample;
+                    depth[index] = z;
+                } else {
+                    pixels[index] = blendOver(shadedSample, pixels[index]);
+                }
                 objectIds[index] = objectId;
                 trackedBounds.computeIfAbsent(objectId, ignored -> new MutableBounds()).include(x, y);
             }
