@@ -423,12 +423,12 @@ public final class SceneWorldRenderer {
                 double localV = vRange == 0.0F ? 0.0D : (v - sprite.getV0()) / vRange;
                 int tx = clamp((int) (Math.max(0.0D, Math.min(0.999999D, localU)) * spriteWidth), 0, spriteWidth - 1);
                 int ty = clamp((int) (Math.max(0.0D, Math.min(0.999999D, localV)) * spriteHeight), 0, spriteHeight - 1);
-                int sample = sprite.getPixelRGBA(0, tx, ty);
+                int sample = sprite.contents().getOriginalImage().getPixel(tx, ty);
                 int alpha = (sample >>> 24) & 255;
                 if (alpha < 8) continue;
-                int red = sample & 255;
+                int red = (sample >>> 16) & 255;
                 int green = (sample >>> 8) & 255;
-                int blue = (sample >>> 16) & 255;
+                int blue = sample & 255;
                 red = clamp((int) (red * brightness), 0, 255);
                 green = clamp((int) (green * brightness), 0, 255);
                 blue = clamp((int) (blue * brightness), 0, 255);
