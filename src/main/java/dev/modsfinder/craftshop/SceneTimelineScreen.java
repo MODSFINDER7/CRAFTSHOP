@@ -3,6 +3,8 @@ package dev.modsfinder.craftshop;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
+import org.lwjgl.glfw.GLFW;
 import net.minecraft.network.chat.Component;
 
 public final class SceneTimelineScreen extends Screen {
@@ -10,6 +12,7 @@ public final class SceneTimelineScreen extends Screen {
     private final SceneProject project;
     private boolean playing;
     private int ticks;
+    private boolean draggingPlayhead;
 
     public SceneTimelineScreen(Screen parent, SceneProject project) {
         super(Component.literal("CraftShop Keyframe Timeline"));
@@ -66,6 +69,40 @@ public final class SceneTimelineScreen extends Screen {
         }
     }
     private void closeTimeline() { playing = false; minecraft.gui.setScreen(parent); }
+
+
+    private void scrub(double mouseX) {
+        int left = 100, right = width - 42;
+        double ratio = Math.max(0.0D, Math.min(1.0D, (mouseX - left) / Math.max(1.0D, right - left)));
+        setFrame((int)Math.round(ratio * 2400.0D));
+    }
+
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT && event.y() >= 202 && event.y() <= 238
+                && event.x() >= 100 && event.x() <= width - 42) {
+            playing = false;
+            draggingPlayhead = true;
+            scrub(event.x());
+            return true;
+        }
+        return super.mouseClicked(event, doubleClick);
+    }
+
+    @Override
+    public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) {
+        if (draggingPlayhead && event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+            scrub(event.x());
+            return true;
+        }
+        return super.mouseDragged(event, deltaX, deltaY);
+    }
+
+    @Override
+    public boolean mouseReleased(MouseButtonEvent event) {
+        if (event.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT) draggingPlayhead = false;
+        return super.mouseReleased(event);
+    }
 
     @Override
     public void tick() {
