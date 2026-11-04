@@ -23,6 +23,9 @@ public final class SceneRenderScreen extends Screen {
     private String error = "";
     private SceneWorldRenderer.Frame sceneFrame;
     private boolean draggingObject;
+    private int liveWorldRefreshTicks;
+    private int liveWorldBlockCount;
+    private int liveWorldUnloadedPositions;
 
     public SceneRenderScreen(SceneProject project, Path imagePath) {
         this(project, imagePath, null);
@@ -80,7 +83,17 @@ public final class SceneRenderScreen extends Screen {
         double scale = Math.min(2.0D, 1024.0D / Math.max(1, Math.max(bounds.width(), bounds.height())));
         int renderWidth = Math.max(64, (int) Math.round(bounds.width() * scale));
         int renderHeight = Math.max(64, (int) Math.round(bounds.height() * scale));
-        sceneFrame = SceneWorldRenderer.render(project, renderWidth, renderHeight, minecraft, imagePath == null);
+        SceneProject renderProject = project;
+        if (imagePath == null && parent != null && minecraft != null && minecraft.level != null) {
+            LiveWorldScene.Snapshot snapshot = LiveWorldScene.capture(project, minecraft);
+            renderProject = snapshot.project();
+            liveWorldBlockCount = snapshot.capturedBlocks();
+            liveWorldUnloadedPositions = snapshot.unloadedPositions();
+        } else {
+            liveWorldBlockCount = 0;
+            liveWorldUnloadedPositions = 0;
+        }
+        sceneFrame = SceneWorldRenderer.render(renderProject, renderWidth, renderHeight, minecraft, imagePath == null);
     }
 
     private List<ProjectedObject> projectObjects(CanvasBounds bounds) {
@@ -177,6 +190,18 @@ public final class SceneRenderScreen extends Screen {
 
         if (sceneFrame == null) rebuildSceneFrame(bounds);
         SceneWorldRenderer.draw(graphics, sceneFrame, bounds.x(), bounds.y(), bounds.width(), bounds.height());
+        if (imagePath == null && parent != null) {
+            String liveLabel = minecraft != null && minecraft.level != null
+                    ? "LIVE CLIENT WORLD  /  " + liveWorldBlockCount + " BLOCKS"
+                    : "LIVE WORLD  /  JOIN A WORLD TO ENABLE";
+            graphics.fill(bounds.x() + 7, bounds.y() + 7, bounds.x() + 245, bounds.y() + 23, 0xB5101820);
+            graphics.text(font, liveLabel, bounds.x() + 12, bounds.y() + 11,
+                    minecraft != null && minecraft.level != null ? 0xFF9DE6B0 : 0xFFFFC66D, true);
+            if (liveWorldUnloadedPositions > 0) {
+                graphics.text(font, "Unloaded positions skipped: " + liveWorldUnloadedPositions,
+                        bounds.x() + 12, bounds.y() + 27, 0xFFB8C5D1, false);
+            }
+        }
         if (minecraft != null && minecraft.level != null) {
             for (ProjectedObject projected : projectObjects(bounds)) {
                 if (!"minecraft_entity".equals(projected.object().kind)) continue;
@@ -211,6 +236,11 @@ public final class SceneRenderScreen extends Screen {
     public void tick() {
         super.tick();
         if (parent == null || minecraft == null) return;
+
+        if (imagePath == null && ++liveWorldRefreshTicks >= 5) {
+            liveWorldRefreshTicks = 0;
+            sceneFrame = null;
+        }
 
         var options = minecraft.options;
         float side = (options.keyRight.isDown() ? 1.0F : 0.0F)
@@ -265,7 +295,9 @@ public final class SceneRenderScreen extends Screen {
             int localX = (int) ((event.x() - bounds.x()) * sceneFrame.width() / bounds.width());
             int localY = (int) ((event.y() - bounds.y()) * sceneFrame.height() / bounds.height());
             String selected = SceneWorldRenderer.hitTest(sceneFrame, localX, localY);
-            project.selectedObjectId = selected == null ? "" : selected;
+            boolean editableObject = selected != null && project.objects.stream()
+                    .anyMatch(candidate -> selected.equals(candidate.id));
+            project.selectedObjectId = editableObject ? selected : "";
             sceneFrame = null;
             SceneProject.SceneObject object = selected == null ? null : project.objects.stream()
                     .filter(candidate -> selected.equals(candidate.id)).findFirst().orElse(null);
