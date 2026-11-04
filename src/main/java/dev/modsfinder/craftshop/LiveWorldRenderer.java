@@ -106,10 +106,11 @@ public final class LiveWorldRenderer {
         state.depthFar = source.depthFar;
         state.entityRenderState = source.entityRenderState;
 
-        Quaternionf base = source.orientation == null ? new Quaternionf() : new Quaternionf(source.orientation);
-        state.orientation = base
-                .rotateY((float) Math.toRadians(camera.yaw - source.yRot))
-                .rotateX((float) Math.toRadians(camera.pitch - source.xRot));
+        state.orientation = new Quaternionf().rotationYXZ(
+                (float) Math.PI - camera.yaw * ((float) Math.PI / 180.0F),
+                -camera.pitch * ((float) Math.PI / 180.0F),
+                0.0F
+        );
         state.viewRotationMatrix = new Matrix4f().rotation(new Quaternionf(state.orientation).conjugate());
         float zoom = Math.max(0.2F, Math.min(4.0F, camera.zoom));
         state.projectionMatrix = new Matrix4f(source.projectionMatrix).scale(zoom, zoom, 1.0F);
