@@ -96,6 +96,7 @@ public final class StudioScreen extends Screen {
         addButton("Place Block", buttonX, y, buttonWidth, 22, () -> openAssetPicker(false));
         addButton("Spawn Mob", buttonX, y + 28, buttonWidth, 22, () -> openAssetPicker(true));
         addButton("Add Cube", buttonX, y + 56, buttonWidth, 22, this::addCube);
+        addButton("Import World", buttonX, y + 84, buttonWidth, 22, this::importNearbyWorld);
 
         int cameraY = 224;
         int smallW = 41;
@@ -367,6 +368,53 @@ public final class StudioScreen extends Screen {
             status = (asset.entity() ? "Spawned " : "Placed ") + asset.id();
             rebuild();
         }));
+    }
+
+    private void importNearbyWorld() {
+        if (minecraft == null || minecraft.player == null || minecraft.level == null) {
+            status = "Join a world before importing blocks";
+            rebuild();
+            return;
+        }
+
+        checkpoint();
+        net.minecraft.core.BlockPos origin = minecraft.player.blockPosition();
+        int imported = 0;
+        for (int y = -2; y <= 3; y++) {
+            for (int x = -4; x <= 4; x++) {
+                for (int z = -4; z <= 4; z++) {
+                    net.minecraft.core.BlockPos position = origin.offset(x, y, z);
+                    net.minecraft.world.level.block.state.BlockState state =
+                            minecraft.level.getBlockState(position);
+                    if (state.isAir()) continue;
+
+                    net.minecraft.resources.Identifier blockId =
+                            net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock());
+                    if (blockId == null) continue;
+
+                    SceneProject.SceneObject object = new SceneProject.SceneObject();
+                    object.kind = "minecraft_block";
+                    object.assetId = blockId.toString();
+                    object.name = blockId.toString();
+                    object.transform.x = x;
+                    object.transform.y = y;
+                    object.transform.z = z;
+                    project.objects.add(object);
+                    imported++;
+                }
+            }
+        }
+
+        if (imported == 0) {
+            undoHistory.pop();
+            status = "No non-air blocks found nearby";
+        } else {
+            selectedObjectId = project.objects.get(project.objects.size() - 1).id;
+            project.selectedObjectId = selectedObjectId;
+            scenePage = Math.max(0, (project.objects.size() - 1) / visibleObjectRows());
+            status = "Imported " + imported + " nearby blocks (block states use default variants)";
+        }
+        rebuild();
     }
 
     private void addCube() {
