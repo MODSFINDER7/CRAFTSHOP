@@ -2,6 +2,8 @@ package dev.modsfinder.craftshop;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 public final class SceneProject {
@@ -34,6 +36,7 @@ public final class SceneProject {
         public String name = "Object";
         public String kind = "mesh_cube";
         public String assetId = "minecraft:stone";
+        public Map<String, String> blockProperties = new LinkedHashMap<>();
         public Transform transform = new Transform();
         public boolean visible = true;
         public boolean locked = false;
