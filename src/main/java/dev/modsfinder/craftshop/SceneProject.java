@@ -18,6 +18,14 @@ public final class SceneProject {
     public float ambientLight = 0.58F;
     public Camera camera = new Camera();
     public List<SceneObject> objects = new ArrayList<>();
+    public List<Keyframe> keyframes = new ArrayList<>();
+    public int timelineFrame = 0;
+
+    public static final class Keyframe {
+        public String objectId = "";
+        public int frame = 0;
+        public Transform transform = new Transform();
+    }
 
     public static final class Camera {
         public float x = 0.0F;
