@@ -40,6 +40,10 @@ public final class SceneWorldRenderer {
     }
 
     public static Frame render(SceneProject project, int width, int height, Minecraft minecraft) {
+        return render(project, width, height, minecraft, false);
+    }
+
+    public static Frame render(SceneProject project, int width, int height, Minecraft minecraft, boolean showGroundGrid) {
         int w = Math.max(64, Math.min(1024, width));
         int h = Math.max(64, Math.min(1024, height));
         int[] pixels = new int[w * h];
@@ -51,6 +55,7 @@ public final class SceneWorldRenderer {
         SceneProject.Camera camera = project.camera == null ? new SceneProject.Camera() : project.camera;
         CameraBasis basis = new CameraBasis(camera);
         Raster raster = new Raster(w, h, pixels, depth, objectIds, basis, project);
+        if (showGroundGrid) raster.drawGroundGrid(24, 1.0D);
 
         SceneWorld world = SceneWorld.from(project);
         // Render far-to-near: opaque fragments still resolve through the depth
@@ -481,6 +486,43 @@ public final class SceneWorldRenderer {
             this.lightY = ly / length;
             this.lightZ = lz / length;
             this.ambient = Math.max(0.15D, Math.min(0.95D, project.ambientLight));
+        }
+
+        void drawGroundGrid(int extent, double spacing) {
+            double groundY = -0.505D;
+            for (int coordinate = -extent; coordinate <= extent; coordinate++) {
+                int minor = coordinate == 0 ? 0xFF4D6878
+                        : coordinate % 5 == 0 ? 0xFF354957 : 0xFF293A46;
+                lineWorld(new Vec3(-extent * spacing, groundY, coordinate * spacing),
+                        new Vec3(extent * spacing, groundY, coordinate * spacing),
+                        coordinate == 0 ? 0xFFB95C5C : minor);
+                lineWorld(new Vec3(coordinate * spacing, groundY, -extent * spacing),
+                        new Vec3(coordinate * spacing, groundY, extent * spacing),
+                        coordinate == 0 ? 0xFF55A9D6 : minor);
+            }
+        }
+
+        private void lineWorld(Vec3 start, Vec3 end, int color) {
+            CameraPoint a = camera.transform(start);
+            CameraPoint b = camera.transform(end);
+            if (a.z <= NEAR && b.z <= NEAR) return;
+            if (a.z <= NEAR || b.z <= NEAR) {
+                double t = (NEAR - a.z) / (b.z - a.z);
+                CameraPoint clipped = new CameraPoint(
+                        a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, NEAR + 0.00001D);
+                if (a.z <= NEAR) a = clipped; else b = clipped;
+            }
+            ScreenPoint pa = project(a), pb = project(b);
+            int steps = Math.max(1, (int) Math.ceil(Math.max(
+                    Math.abs(pb.x - pa.x), Math.abs(pb.y - pa.y))));
+            for (int step = 0; step <= steps; step++) {
+                double t = step / (double) steps;
+                int x = (int) Math.round(pa.x + (pb.x - pa.x) * t);
+                int y = (int) Math.round(pa.y + (pb.y - pa.y) * t);
+                if (x < 0 || x >= width || y < 0 || y >= height) continue;
+                int index = y * width + x;
+                if (pixels[index] == 0) pixels[index] = color;
+            }
         }
 
         float faceBrightness(int face) {
