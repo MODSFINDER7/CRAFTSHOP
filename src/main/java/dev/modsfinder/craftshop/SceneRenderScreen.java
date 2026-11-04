@@ -312,6 +312,8 @@ public final class SceneRenderScreen extends Screen {
                 copy.name = source.name + " Copy";
                 copy.kind = source.kind;
                 copy.assetId = source.assetId;
+                copy.blockProperties = source.blockProperties == null ? new java.util.LinkedHashMap<>()
+                        : new java.util.LinkedHashMap<>(source.blockProperties);
                 copy.visible = source.visible;
                 copy.transform.x = source.transform.x + 0.5F;
                 copy.transform.y = source.transform.y;
