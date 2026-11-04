@@ -40,7 +40,8 @@ public final class SceneAssetRenderer {
                 preview = blockDisplay;
                 created = true;
             }
-            ((Display.BlockDisplay) preview).setBlockState(block.defaultBlockState());
+            ((Display.BlockDisplay) preview).setBlockState(
+                    SceneWorldRenderer.applyBlockProperties(block.defaultBlockState(), object.blockProperties));
         } else if ("minecraft_entity".equals(object.kind)) {
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(id);
             if (type == null || id.getPath().equals("player")) return;
