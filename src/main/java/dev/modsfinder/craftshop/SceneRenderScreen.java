@@ -70,6 +70,12 @@ public final class SceneRenderScreen extends Screen {
 
     public record CanvasBounds(int x, int y, int width, int height) {}
 
+    private CanvasBounds interactionBounds() {
+        return imagePath == null
+                ? new CanvasBounds(12, 30, Math.max(1, width - 24), Math.max(1, height - 66))
+                : canvasBounds(width, height, imageWidth, imageHeight);
+    }
+
     private void rebuildSceneFrame(CanvasBounds bounds) {
         double scale = Math.min(2.0D, 1024.0D / Math.max(1, Math.max(bounds.width(), bounds.height())));
         int renderWidth = Math.max(64, (int) Math.round(bounds.width() * scale));
@@ -252,7 +258,7 @@ public final class SceneRenderScreen extends Screen {
         if (event.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !isReady()) {
             return super.mouseClicked(event, doubleClick);
         }
-        CanvasBounds bounds = canvasBounds(width, height, imageWidth, imageHeight);
+        CanvasBounds bounds = interactionBounds();
         if (event.x() >= bounds.x() && event.x() <= bounds.x() + bounds.width()
                 && event.y() >= bounds.y() && event.y() <= bounds.y() + bounds.height()) {
             if (sceneFrame == null) rebuildSceneFrame(bounds);
