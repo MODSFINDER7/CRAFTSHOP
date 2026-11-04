@@ -13,6 +13,7 @@ import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.extract.LevelExtractor;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.state.level.LevelRenderState;
+import dev.modsfinder.craftshop.mixin.CameraAccessor;
 import org.joml.Matrix4f;
 
 public final class LiveWorldRenderer {
@@ -114,7 +115,7 @@ public final class LiveWorldRenderer {
         if (secondaryState == null || secondaryLevel != minecraft.level || secondaryLevelRenderer != levelRenderer) {
             secondaryState = new LevelRenderState();
             secondaryExtractor = new LevelExtractor(minecraft, secondaryState, levelRenderer);
-            secondaryCamera = new Camera(minecraft);
+            secondaryCamera = new Camera();
             secondaryLevel = minecraft.level;
             secondaryLevelRenderer = levelRenderer;
         }
