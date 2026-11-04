@@ -508,6 +508,8 @@ public final class StudioScreen extends Screen {
         copy.name = source.name + " Copy";
         copy.kind = source.kind;
         copy.assetId = source.assetId;
+        copy.blockProperties = source.blockProperties == null ? new java.util.LinkedHashMap<>()
+                : new java.util.LinkedHashMap<>(source.blockProperties);
         copy.visible = source.visible;
         copy.locked = false;
         copy.transform.x = source.transform.x + 0.5F;
