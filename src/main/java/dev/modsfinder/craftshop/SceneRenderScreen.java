@@ -239,6 +239,7 @@ public final class SceneRenderScreen extends Screen {
     public void tick() {
         super.tick();
         if (parent == null || minecraft == null) return;
+        LiveWorldRenderer.begin(project.camera, minecraft, width, height);
 
         var options = minecraft.options;
         float side = (options.keyRight.isDown() ? 1.0F : 0.0F)
