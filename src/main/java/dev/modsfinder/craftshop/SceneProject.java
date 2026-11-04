@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class SceneProject {
-    public int formatVersion = 3;
+    public int formatVersion = 4;
     public String canvasImage = "";
     public String renderedImage = "";
     public String selectedObjectId = "";
