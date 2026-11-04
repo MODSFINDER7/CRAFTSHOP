@@ -165,6 +165,7 @@ public final class LiveWorldRenderer {
         if (secondaryState == null || secondaryLevel != minecraft.level || secondaryLevelRenderer != levelRenderer) {
             secondaryState = new LevelRenderState();
             secondaryExtractor = new LevelExtractor(minecraft, secondaryState, levelRenderer);
+            secondaryExtractor.setLevel(minecraft.level);
             secondaryCamera = new Camera();
             secondaryLevel = minecraft.level;
             secondaryLevelRenderer = levelRenderer;
@@ -176,6 +177,7 @@ public final class LiveWorldRenderer {
         secondaryCamera.tick();
 
         CameraAccessor accessor = (CameraAccessor) secondaryCamera;
+        accessor.craftshop$setDetached(true);
         accessor.craftshop$setRotation(camera.yaw, camera.pitch);
         accessor.craftshop$setPosition(camera.x, camera.y, camera.z);
 
