@@ -16,11 +16,19 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.awt.image.BufferedImage;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.geom.Path2D;
 import javax.imageio.ImageIO;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.util.function.Consumer;
 
 public final class Canvas2DScreen extends Screen {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -31,6 +39,7 @@ public final class Canvas2DScreen extends Screen {
     };
 
     private final Screen parent;
+    private final Consumer<Path> exportCallback;
     private CanvasDocument document = new CanvasDocument();
     private String tool = "Brush";
     private int activeColor = PALETTE[0];
@@ -41,6 +50,18 @@ public final class Canvas2DScreen extends Screen {
     private final Deque<String> redoHistory = new ArrayDeque<>();
     private boolean drawing;
     private boolean cropping;
+    private boolean shaping;
+    private boolean selecting;
+    private boolean movingSelection;
+    private boolean scalingSelection;
+    private boolean hasSelection;
+    private float selectionStartX, selectionStartY, selectionEndX, selectionEndY;
+    private float selectionLeft, selectionTop, selectionRight, selectionBottom;
+    private float selectionLastX, selectionLastY;
+    private float shapeStartX;
+    private float shapeStartY;
+    private float shapeEndX;
+    private float shapeEndY;
     private float lastX;
     private float lastY;
     private int cropStartX;
@@ -52,8 +73,19 @@ public final class Canvas2DScreen extends Screen {
     private String status = "Ready";
 
     public Canvas2DScreen(Screen parent) {
+        this(parent, null, null);
+    }
+
+    public Canvas2DScreen(Screen parent, Path initialImage, Consumer<Path> exportCallback) {
         super(Component.literal("CraftShop 2D Editor"));
         this.parent = parent;
+        this.exportCallback = exportCallback;
+        if (initialImage != null && Files.isRegularFile(initialImage)) {
+            document.backgroundImage = initialImage.toAbsolutePath().normalize().toString();
+            String filename = initialImage.getFileName().toString();
+            int dot = filename.lastIndexOf('.');
+            document.name = dot > 0 ? filename.substring(0, dot) : filename;
+        }
     }
 
     private int canvasLeft() { return 112; }
@@ -65,38 +97,41 @@ public final class Canvas2DScreen extends Screen {
     protected void init() {
         int x = 12;
         int y = 70;
+        int toolStep = this.height < 600 ? 18 : 24;
+        int controlStep = this.height < 600 ? 18 : 24;
+        int controlsTop = y + toolStep * 8 + 8;
         addRenderableWidget(toolButton("Brush", x, y));
-        addRenderableWidget(toolButton("Eraser", x, y + 24));
-        addRenderableWidget(toolButton("Text", x, y + 48));
-        addRenderableWidget(toolButton("Crop", x, y + 72));
+        addRenderableWidget(toolButton("Eraser", x, y + toolStep));
+        addRenderableWidget(toolButton("Text", x, y + toolStep * 2));
+        addRenderableWidget(toolButton("Crop", x, y + toolStep * 3));
+        addRenderableWidget(toolButton("Line", x, y + toolStep * 4));
+        addRenderableWidget(toolButton("Rectangle", x, y + toolStep * 5));
+        addRenderableWidget(toolButton("Ellipse", x, y + toolStep * 6));
+        addRenderableWidget(toolButton("Select", x, y + toolStep * 7));
 
         addRenderableWidget(Button.builder(Component.literal("Size -"), b -> brushSize = Math.max(1, brushSize - 2))
-                .bounds(x, y + 104, 78, 20).build());
+                .bounds(x, controlsTop, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Size +"), b -> brushSize = Math.min(40, brushSize + 2))
-                .bounds(x, y + 128, 78, 20).build());
+                .bounds(x, controlsTop + controlStep, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Undo"), b -> undo())
-                .bounds(x, y + 160, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 2, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Redo"), b -> redo())
-                .bounds(x, y + 184, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 3, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Clear"), b -> clearLayer())
-                .bounds(x, y + 208, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 4, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Layer On/Off"), b -> toggleLayer())
-                .bounds(x, y + 232, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 5, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Reset Crop"), b -> resetCrop())
-                .bounds(x, y + 256, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 6, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Opacity +"), b -> adjustLayerOpacity(0.1F))
-                .bounds(x, y + 280, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 7, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Opacity -"), b -> adjustLayerOpacity(-0.1F))
-                .bounds(x, y + 304, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 8, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Layer Up"), b -> moveLayer(-1))
-                .bounds(x, y + 328, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 9, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Layer Down"), b -> moveLayer(1))
-                .bounds(x, y + 352, 78, 20).build());
+                .bounds(x, controlsTop + controlStep * 10, 78, 20).build());
 
-        addRenderableWidget(Button.builder(Component.literal("New"), b -> newDocument())
-                .bounds(172, 12, 48, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Open"), b -> openProjectPicker())
-                .bounds(224, 12, 52, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Save"), b -> saveDocument())
                 .bounds(280, 12, 52, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Add Layer"), b -> addLayer())
@@ -107,19 +142,6 @@ public final class Canvas2DScreen extends Screen {
                 .bounds(510, 12, 72, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Bright -"), b -> adjustBrightness(-12))
                 .bounds(586, 12, 72, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Import Image"), b -> openImagePicker())
-                .bounds(this.width - 178, 310, 158, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Grayscale"), b -> applyImageFilter("grayscale"))
-                .bounds(this.width - 178, 336, 76, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Invert"), b -> applyImageFilter("invert"))
-                .bounds(this.width - 98, 336, 78, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Sepia"), b -> applyImageFilter("sepia"))
-                .bounds(this.width - 178, 360, 76, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Reset Image"), b -> {
-            checkpoint();
-            document.backgroundImage = "";
-            status = "Background image cleared";
-        }).bounds(this.width - 98, 360, 78, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Export PNG"), b -> exportCanvas())
                 .bounds(662, 12, 82, 20).build());
         addRenderableWidget(Button.builder(Component.literal("3D Studio"), b -> returnToParent())
@@ -259,12 +281,23 @@ public final class Canvas2DScreen extends Screen {
                     previous = point;
                 }
             }
+            for (ShapeItem item : layer.shapes) {
+                if (insideCrop(item.x1, item.y1) || insideCrop(item.x2, item.y2)) {
+                    drawCanvasShape(graphics, item.type, item.x1, item.y1, item.x2, item.y2,
+                            item.size, withOpacity(adjustColor(item.color, document.brightness), layer.opacity));
+                }
+            }
             for (TextItem item : layer.texts) {
                 if (insideCrop(item.x, item.y)) {
                     graphics.text(font, item.text, Math.round(item.x), Math.round(item.y),
                             withOpacity(adjustColor(item.color, document.brightness), layer.opacity), false);
                 }
             }
+        }
+
+        if (shaping) {
+            drawCanvasShape(graphics, tool, shapeStartX, shapeStartY, shapeEndX, shapeEndY,
+                    brushSize, activeColor);
         }
 
         if (document.cropWidth > 0 && document.cropHeight > 0) {
@@ -281,6 +314,21 @@ public final class Canvas2DScreen extends Screen {
         if (cropping) {
             graphics.outline(Math.min(cropStartX, cropEndX), Math.min(cropStartY, cropEndY),
                     Math.abs(cropEndX - cropStartX), Math.abs(cropEndY - cropStartY), 0xFFFF9800);
+        }
+        if ("Select".equals(tool) && (selecting || hasSelection)) {
+            float left = selecting ? Math.min(selectionStartX, selectionEndX) : selectionLeft;
+            float top = selecting ? Math.min(selectionStartY, selectionEndY) : selectionTop;
+            float right = selecting ? Math.max(selectionStartX, selectionEndX) : selectionRight;
+            float bottom = selecting ? Math.max(selectionStartY, selectionEndY) : selectionBottom;
+            int sx = Math.round(left);
+            int sy = Math.round(top);
+            int sw = Math.max(1, Math.round(right - left));
+            int sh = Math.max(1, Math.round(bottom - top));
+            graphics.outline(sx, sy, sw, sh, 0xFF00A6D8);
+            if (hasSelection && !selecting) {
+                graphics.fill(Math.round(right) - 3, Math.round(bottom) - 3,
+                        Math.round(right) + 4, Math.round(bottom) + 4, 0xFF00D8FF);
+            }
         }
         graphics.fill(0, height - 8, width, height, 0xFF0B0E13);
         graphics.text(font, "CRAFTSHOP 2D  •  " + document.name + "  •  " + document.layers.size() + " layers",
@@ -319,12 +367,67 @@ public final class Canvas2DScreen extends Screen {
         }
     }
 
+    private void drawCanvasShape(GuiGraphicsExtractor graphics, String type, float x1, float y1,
+                                 float x2, float y2, int size, int color) {
+        if ("Line".equals(type)) {
+            drawSegment(graphics, x1, y1, x2, y2, size, color);
+            return;
+        }
+        float left = Math.min(x1, x2);
+        float top = Math.min(y1, y2);
+        float right = Math.max(x1, x2);
+        float bottom = Math.max(y1, y2);
+        if ("Rectangle".equals(type)) {
+            drawSegment(graphics, left, top, right, top, size, color);
+            drawSegment(graphics, right, top, right, bottom, size, color);
+            drawSegment(graphics, right, bottom, left, bottom, size, color);
+            drawSegment(graphics, left, bottom, left, top, size, color);
+            return;
+        }
+        float centerX = (left + right) * 0.5F;
+        float centerY = (top + bottom) * 0.5F;
+        float radiusX = Math.max(0.5F, (right - left) * 0.5F);
+        float radiusY = Math.max(0.5F, (bottom - top) * 0.5F);
+        float previousX = centerX + radiusX;
+        float previousY = centerY;
+        for (int i = 1; i <= 64; i++) {
+            double angle = Math.PI * 2.0 * i / 64.0;
+            float nextX = centerX + (float) Math.cos(angle) * radiusX;
+            float nextY = centerY + (float) Math.sin(angle) * radiusY;
+            drawSegment(graphics, previousX, previousY, nextX, nextY, size, color);
+            previousX = nextX;
+            previousY = nextY;
+        }
+    }
+
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         double mouseX = event.x();
         double mouseY = event.y();
         int button = event.button();
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && insideCanvas(mouseX, mouseY)) {
+            if ("Select".equals(tool)) {
+                float px = (float) mouseX;
+                float py = (float) mouseY;
+                if (hasSelection && Math.abs(px - selectionRight) <= 8.0F
+                        && Math.abs(py - selectionBottom) <= 8.0F) {
+                    scalingSelection = true;
+                    selectionLastX = px;
+                    selectionLastY = py;
+                    checkpoint();
+                } else if (hasSelection && insideSelection(px, py)) {
+                    movingSelection = true;
+                    selectionLastX = px;
+                    selectionLastY = py;
+                    checkpoint();
+                } else {
+                    selecting = true;
+                    hasSelection = false;
+                    selectionStartX = selectionEndX = px;
+                    selectionStartY = selectionEndY = py;
+                }
+                return true;
+            }
             if ("Crop".equals(tool)) {
                 cropping = true;
                 cropStartX = cropEndX = (int) mouseX;
@@ -339,6 +442,8 @@ public final class Canvas2DScreen extends Screen {
                 stroke.color = activeColor;
                 stroke.size = brushSize;
                 stroke.eraser = "Eraser".equals(tool);
+                stroke.eraseBackground = stroke.eraser && document.backgroundImage != null
+                        && !document.backgroundImage.isBlank();
                 stroke.points.add(new Point((float) mouseX, (float) mouseY));
                 layer.strokes.add(stroke);
                 drawing = true;
@@ -350,6 +455,12 @@ public final class Canvas2DScreen extends Screen {
                 textAnchorX = (float) mouseX;
                 textAnchorY = (float) mouseY;
                 status = "Text position selected; enter text on the right";
+                return true;
+            }
+            if ("Line".equals(tool) || "Rectangle".equals(tool) || "Ellipse".equals(tool)) {
+                shaping = true;
+                shapeStartX = shapeEndX = (float) mouseX;
+                shapeStartY = shapeEndY = (float) mouseY;
                 return true;
             }
         }
@@ -365,9 +476,31 @@ public final class Canvas2DScreen extends Screen {
         double mouseY = event.y();
         int button = event.button();
         if (button != GLFW.GLFW_MOUSE_BUTTON_LEFT) return super.mouseDragged(event, dragX, dragY);
+        if (selecting) {
+            selectionEndX = Math.max(canvasLeft(), Math.min(canvasRight() - 1, (float) mouseX));
+            selectionEndY = Math.max(canvasTop(), Math.min(canvasBottom() - 1, (float) mouseY));
+            return true;
+        }
+        if (movingSelection) {
+            float x = (float) mouseX;
+            float y = (float) mouseY;
+            translateSelection(x - selectionLastX, y - selectionLastY);
+            selectionLastX = x;
+            selectionLastY = y;
+            return true;
+        }
+        if (scalingSelection) {
+            scaleSelectionTo((float) mouseX, (float) mouseY);
+            return true;
+        }
         if (cropping) {
             cropEndX = clamp((int) mouseX, canvasLeft(), canvasRight());
             cropEndY = clamp((int) mouseY, canvasTop(), canvasBottom());
+            return true;
+        }
+        if (shaping) {
+            shapeEndX = (float) Math.max(canvasLeft(), Math.min(canvasRight() - 1, mouseX));
+            shapeEndY = (float) Math.max(canvasTop(), Math.min(canvasBottom() - 1, mouseY));
             return true;
         }
         if (drawing) {
@@ -384,6 +517,37 @@ public final class Canvas2DScreen extends Screen {
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
         int button = event.button();
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && selecting) {
+            selecting = false;
+            selectionLeft = Math.min(selectionStartX, selectionEndX);
+            selectionTop = Math.min(selectionStartY, selectionEndY);
+            selectionRight = Math.max(selectionStartX, selectionEndX);
+            selectionBottom = Math.max(selectionStartY, selectionEndY);
+            hasSelection = selectionRight - selectionLeft >= 6.0F
+                    && selectionBottom - selectionTop >= 6.0F;
+            status = hasSelection ? "Selection created on " + currentLayer().name : "Selection cancelled";
+            return true;
+        }
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && movingSelection) {
+            movingSelection = false;
+            status = "Selection moved";
+            return true;
+        }
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && scalingSelection) {
+            scalingSelection = false;
+            status = "Selection resized";
+            return true;
+        }
+        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && shaping) {
+            shaping = false;
+            if (Math.hypot(shapeEndX - shapeStartX, shapeEndY - shapeStartY) > 2.0) {
+                checkpoint();
+                currentLayer().shapes.add(new ShapeItem(tool, shapeStartX, shapeStartY,
+                        shapeEndX, shapeEndY, activeColor, brushSize));
+                status = tool + " added";
+            }
+            return true;
+        }
         if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && drawing) {
             drawing = false;
             status = "Stroke added";
@@ -406,6 +570,83 @@ public final class Canvas2DScreen extends Screen {
             return true;
         }
         return super.mouseReleased(event);
+    }
+
+    private boolean insideSelection(float x, float y) {
+        return x >= selectionLeft && x <= selectionRight
+                && y >= selectionTop && y <= selectionBottom;
+    }
+
+    private void translateSelection(float dx, float dy) {
+        if (!hasSelection || (dx == 0.0F && dy == 0.0F)) return;
+        dx = Math.max(canvasLeft() - selectionLeft,
+                Math.min(canvasRight() - selectionRight, dx));
+        dy = Math.max(canvasTop() - selectionTop,
+                Math.min(canvasBottom() - selectionBottom, dy));
+        if (dx == 0.0F && dy == 0.0F) return;
+
+        Layer layer = currentLayer();
+        for (Stroke stroke : layer.strokes) {
+            for (Point point : stroke.points) {
+                if (insideSelection(point.x, point.y)) {
+                    point.x += dx;
+                    point.y += dy;
+                }
+            }
+        }
+        for (ShapeItem item : layer.shapes) {
+            if (insideSelection(item.x1, item.y1) && insideSelection(item.x2, item.y2)) {
+                item.x1 += dx; item.x2 += dx;
+                item.y1 += dy; item.y2 += dy;
+            }
+        }
+        for (TextItem item : layer.texts) {
+            if (insideSelection(item.x, item.y)) {
+                item.x += dx;
+                item.y += dy;
+            }
+        }
+        selectionLeft += dx; selectionRight += dx;
+        selectionTop += dy; selectionBottom += dy;
+    }
+
+    private void scaleSelectionTo(float mouseX, float mouseY) {
+        if (!hasSelection) return;
+        float oldWidth = Math.max(1.0F, selectionRight - selectionLeft);
+        float oldHeight = Math.max(1.0F, selectionBottom - selectionTop);
+        float newRight = Math.max(selectionLeft + 6.0F,
+                Math.min(canvasRight() - 1.0F, mouseX));
+        float newBottom = Math.max(selectionTop + 6.0F,
+                Math.min(canvasBottom() - 1.0F, mouseY));
+        float scaleX = (newRight - selectionLeft) / oldWidth;
+        float scaleY = (newBottom - selectionTop) / oldHeight;
+        if (Math.abs(scaleX - 1.0F) < 0.0001F && Math.abs(scaleY - 1.0F) < 0.0001F) return;
+
+        Layer layer = currentLayer();
+        for (Stroke stroke : layer.strokes) {
+            for (Point point : stroke.points) {
+                if (insideSelection(point.x, point.y)) {
+                    point.x = selectionLeft + (point.x - selectionLeft) * scaleX;
+                    point.y = selectionTop + (point.y - selectionTop) * scaleY;
+                }
+            }
+        }
+        for (ShapeItem item : layer.shapes) {
+            if (insideSelection(item.x1, item.y1) && insideSelection(item.x2, item.y2)) {
+                item.x1 = selectionLeft + (item.x1 - selectionLeft) * scaleX;
+                item.x2 = selectionLeft + (item.x2 - selectionLeft) * scaleX;
+                item.y1 = selectionTop + (item.y1 - selectionTop) * scaleY;
+                item.y2 = selectionTop + (item.y2 - selectionTop) * scaleY;
+            }
+        }
+        for (TextItem item : layer.texts) {
+            if (insideSelection(item.x, item.y)) {
+                item.x = selectionLeft + (item.x - selectionLeft) * scaleX;
+                item.y = selectionTop + (item.y - selectionTop) * scaleY;
+            }
+        }
+        selectionRight = newRight;
+        selectionBottom = newBottom;
     }
 
     private Layer currentLayer() {
@@ -434,8 +675,15 @@ public final class Canvas2DScreen extends Screen {
 
     private Path resolveBackgroundPath() {
         if (document.backgroundImage == null || document.backgroundImage.isBlank()) return null;
-        Path stored = Path.of(document.backgroundImage);
-        return stored.isAbsolute() ? stored : directory().resolve(stored).normalize();
+        try {
+            Path stored = Path.of(document.backgroundImage);
+            if (stored.isAbsolute()) return stored.normalize();
+            Path root = directory().toAbsolutePath().normalize();
+            Path resolved = root.resolve(stored).normalize();
+            return resolved.startsWith(root) ? resolved : null;
+        } catch (RuntimeException exception) {
+            return null;
+        }
     }
 
     private void applyImageFilter(String filter) {
@@ -558,6 +806,7 @@ public final class Canvas2DScreen extends Screen {
         Layer layer = currentLayer();
         layer.strokes.clear();
         layer.texts.clear();
+        layer.shapes.clear();
         status = "Active layer cleared";
     }
 
@@ -605,6 +854,7 @@ public final class Canvas2DScreen extends Screen {
             layer.opacity = Math.max(0.05F, Math.min(1.0F, layer.opacity));
             if (layer.strokes == null) layer.strokes = new ArrayList<>();
             if (layer.texts == null) layer.texts = new ArrayList<>();
+            if (layer.shapes == null) layer.shapes = new ArrayList<>();
             for (Stroke stroke : layer.strokes) if (stroke.points == null) stroke.points = new ArrayList<>();
         }
         candidate.layers.removeIf(java.util.Objects::isNull);
@@ -638,9 +888,24 @@ public final class Canvas2DScreen extends Screen {
             String requestedName = projectNameField == null ? document.name : projectNameField.getValue().trim();
             if (requestedName == null || requestedName.isBlank()) requestedName = "Untitled Canvas";
             document.name = requestedName;
-            String safe = document.name.replaceAll("[^A-Za-z0-9._-]", "_");
-            Path file = directory().resolve(safe + ".craftshop2d");
-            Files.writeString(file, GSON.toJson(document));
+            String safe = document.name.replaceAll("[^A-Za-z0-9._-]", "_").replaceAll("^[.]+", "");
+            if (safe.isBlank()) safe = "Untitled_Canvas";
+            Path root = directory().toAbsolutePath().normalize();
+            Path file = root.resolve(safe + ".craftshop2d").normalize();
+            if (!file.getParent().equals(root)) throw new IOException("Invalid canvas project path");
+            Path temporary = file.resolveSibling(file.getFileName() + ".tmp");
+            try {
+                Files.writeString(temporary, GSON.toJson(document));
+                try {
+                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                            java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+                } catch (java.nio.file.AtomicMoveNotSupportedException ignored) {
+                    Files.move(temporary, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            } finally {
+                Files.deleteIfExists(temporary);
+            }
+            if (projectNameField != null) projectNameField.setValue(document.name);
             status = "Saved " + file.getFileName();
         } catch (IOException exception) {
             CraftShop.LOGGER.error("Could not save CraftShop 2D document", exception);
@@ -654,7 +919,12 @@ public final class Canvas2DScreen extends Screen {
 
     private void loadDocument(Path selectedFile) {
         try {
-            CanvasDocument loaded = GSON.fromJson(Files.readString(selectedFile), CanvasDocument.class);
+            Path root = directory().toAbsolutePath().normalize();
+            Path normalized = selectedFile.toAbsolutePath().normalize();
+            if (!normalized.startsWith(root) || !normalized.getFileName().toString().endsWith(".craftshop2d")) {
+                throw new IOException("Invalid CraftShop 2D project path");
+            }
+            CanvasDocument loaded = GSON.fromJson(Files.readString(normalized), CanvasDocument.class);
             if (loaded == null || loaded.layers == null || loaded.layers.isEmpty()) {
                 status = "Invalid canvas file";
                 return;
@@ -675,14 +945,173 @@ public final class Canvas2DScreen extends Screen {
     }
 
     private void exportCanvas() {
-        status = "Exporting canvas...";
-        int x = document.cropWidth > 0 ? Math.round(document.cropX) : canvasLeft();
-        int y = document.cropHeight > 0 ? Math.round(document.cropY) : canvasTop();
-        int w = document.cropWidth > 0 ? Math.round(document.cropWidth) : canvasRight() - canvasLeft();
-        int h = document.cropHeight > 0 ? Math.round(document.cropHeight) : canvasBottom() - canvasTop();
-        SceneExporter.exportViewport(this.minecraft, x, y, w, h, message -> status = message);
-    }
+        status = "Exporting full-resolution PNG...";
+        BufferedImage source = null;
+        BufferedImage output = null;
+        Graphics2D graphics = null;
+        try {
+            int outputWidth = 1280;
+            int outputHeight = 720;
+            Path sourcePath = resolveBackgroundPath();
+            if (sourcePath != null && Files.isRegularFile(sourcePath)) {
+                source = ImageIO.read(sourcePath.toFile());
+                if (source == null) throw new IOException("The selected PNG could not be decoded");
+                outputWidth = source.getWidth();
+                outputHeight = source.getHeight();
+            }
 
+            output = new BufferedImage(outputWidth, outputHeight, BufferedImage.TYPE_INT_ARGB);
+            graphics = output.createGraphics();
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            graphics.setColor(Color.WHITE);
+            graphics.fillRect(0, 0, outputWidth, outputHeight);
+
+            float displayX = canvasLeft();
+            float displayY = canvasTop();
+            float displayWidth = canvasRight() - canvasLeft();
+            float displayHeight = canvasBottom() - canvasTop();
+            if (source != null) {
+                float fit = Math.min(displayWidth / source.getWidth(), displayHeight / source.getHeight());
+                displayWidth = source.getWidth() * fit;
+                displayHeight = source.getHeight() * fit;
+                displayX += ((canvasRight() - canvasLeft()) - displayWidth) / 2.0F;
+                displayY += ((canvasBottom() - canvasTop()) - displayHeight) / 2.0F;
+                graphics.drawImage(source, 0, 0, outputWidth, outputHeight, null);
+            }
+
+            float sx = outputWidth / displayWidth;
+            float sy = outputHeight / displayHeight;
+
+            // Apply image eraser strokes directly to the imported raster before compositing paint layers.
+            for (Layer layer : document.layers) {
+                if (!layer.visible) continue;
+                for (Stroke stroke : layer.strokes) {
+                    if (!stroke.eraseBackground || stroke.points == null || stroke.points.isEmpty()) continue;
+                    graphics.setComposite(AlphaComposite.Clear);
+                    graphics.setStroke(new BasicStroke(Math.max(1.0F, stroke.size * (sx + sy) * 0.5F),
+                            BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    Path2D.Float erasePath = new Path2D.Float();
+                    Point first = stroke.points.get(0);
+                    erasePath.moveTo((first.x - displayX) * sx, (first.y - displayY) * sy);
+                    for (int i = 1; i < stroke.points.size(); i++) {
+                        Point point = stroke.points.get(i);
+                        erasePath.lineTo((point.x - displayX) * sx, (point.y - displayY) * sy);
+                    }
+                    if (stroke.points.size() == 1) {
+                        Point point = stroke.points.get(0);
+                        float px = (point.x - displayX) * sx;
+                        float py = (point.y - displayY) * sy;
+                        graphics.draw(new java.awt.geom.Line2D.Float(px, py, px + 0.01F, py + 0.01F));
+                    } else {
+                        graphics.draw(erasePath);
+                    }
+                }
+            }
+            graphics.setComposite(AlphaComposite.SrcOver);
+
+            for (Layer layer : document.layers) {
+                if (!layer.visible) continue;
+                BufferedImage layerImage = new BufferedImage(outputWidth, outputHeight, BufferedImage.TYPE_INT_ARGB);
+                Graphics2D layerGraphics = layerImage.createGraphics();
+                layerGraphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                for (Stroke stroke : layer.strokes) {
+                    if (stroke.eraseBackground || stroke.points == null || stroke.points.isEmpty()) continue;
+                    if (stroke.eraser) {
+                        layerGraphics.setComposite(AlphaComposite.Clear);
+                    } else {
+                        layerGraphics.setComposite(AlphaComposite.SrcOver);
+                        layerGraphics.setColor(new Color(adjustColor(stroke.color, document.brightness), true));
+                    }
+                    layerGraphics.setStroke(new BasicStroke(Math.max(1.0F, stroke.size * (sx + sy) * 0.5F),
+                            BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    Path2D.Float path = new Path2D.Float();
+                    Point first = stroke.points.get(0);
+                    path.moveTo((first.x - displayX) * sx, (first.y - displayY) * sy);
+                    for (int i = 1; i < stroke.points.size(); i++) {
+                        Point point = stroke.points.get(i);
+                        path.lineTo((point.x - displayX) * sx, (point.y - displayY) * sy);
+                    }
+                    if (stroke.points.size() == 1) {
+                        Point point = stroke.points.get(0);
+                        float px = (point.x - displayX) * sx;
+                        float py = (point.y - displayY) * sy;
+                        layerGraphics.draw(new java.awt.geom.Line2D.Float(px, py, px + 0.01F, py + 0.01F));
+                    } else {
+                        layerGraphics.draw(path);
+                    }
+                }
+                layerGraphics.setComposite(AlphaComposite.SrcOver);
+                layerGraphics.setColor(Color.WHITE);
+                layerGraphics.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, Math.max(12, Math.round(16 * sx))));
+                for (ShapeItem item : layer.shapes) {
+                    layerGraphics.setColor(new Color(adjustColor(item.color, document.brightness), true));
+                    layerGraphics.setStroke(new BasicStroke(Math.max(1.0F, item.size * (sx + sy) * 0.5F),
+                            BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    float x1 = (item.x1 - displayX) * sx;
+                    float y1 = (item.y1 - displayY) * sy;
+                    float x2 = (item.x2 - displayX) * sx;
+                    float y2 = (item.y2 - displayY) * sy;
+                    float left = Math.min(x1, x2);
+                    float top = Math.min(y1, y2);
+                    float width = Math.abs(x2 - x1);
+                    float height = Math.abs(y2 - y1);
+                    switch (item.type) {
+                        case "Line" -> layerGraphics.draw(new java.awt.geom.Line2D.Float(x1, y1, x2, y2));
+                        case "Rectangle" -> layerGraphics.draw(new java.awt.geom.Rectangle2D.Float(left, top, width, height));
+                        case "Ellipse" -> layerGraphics.draw(new java.awt.geom.Ellipse2D.Float(left, top, width, height));
+                        default -> { }
+                    }
+                }
+                for (TextItem item : layer.texts) {
+                    layerGraphics.setColor(new Color(adjustColor(item.color, document.brightness), true));
+                    layerGraphics.drawString(item.text, (item.x - displayX) * sx, (item.y - displayY) * sy);
+                }
+                layerGraphics.dispose();
+                graphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                        Math.max(0.0F, Math.min(1.0F, layer.opacity))));
+                graphics.drawImage(layerImage, 0, 0, null);
+                graphics.setComposite(AlphaComposite.SrcOver);
+                layerImage.flush();
+            }
+            int cropX = 0, cropY = 0, cropW = outputWidth, cropH = outputHeight;
+            if (document.cropWidth > 0 && document.cropHeight > 0) {
+                cropX = Math.max(0, Math.round((document.cropX - displayX) * sx));
+                cropY = Math.max(0, Math.round((document.cropY - displayY) * sy));
+                cropW = Math.min(outputWidth - cropX, Math.round(document.cropWidth * sx));
+                cropH = Math.min(outputHeight - cropY, Math.round(document.cropHeight * sy));
+            }
+            if (cropW <= 0 || cropH <= 0) throw new IOException("Crop area is outside the image");
+            BufferedImage cropped = output.getSubimage(cropX, cropY, cropW, cropH);
+            Path directory = directory().resolve("exports");
+            Files.createDirectories(directory);
+            String safeName = document.name == null ? "CraftShop" : document.name.replaceAll("[^A-Za-z0-9._-]", "_");
+            if (safeName.isBlank()) safeName = "CraftShop";
+            Path destination = directory.resolve(safeName + "-" + System.currentTimeMillis() + ".png");
+            if (!ImageIO.write(cropped, "png", destination.toFile())) {
+                throw new IOException("PNG encoder is unavailable");
+            }
+            status = "PNG exported: " + destination.getFileName();
+            if (exportCallback != null) {
+                exportCallback.accept(destination);
+            } else {
+                Path gallery = ScreenshotManager.getGalleryDirectory();
+                if (gallery != null) {
+                    Files.createDirectories(gallery);
+                    Path galleryFile = gallery.resolve(safeName + "-edited-" + System.currentTimeMillis() + ".png");
+                    Files.copy(destination, galleryFile);
+                    status = "PNG exported to gallery: " + galleryFile.getFileName();
+                }
+            }
+        } catch (Exception exception) {
+            CraftShop.LOGGER.error("Could not export CraftShop PNG", exception);
+            status = "PNG export failed: " + exception.getMessage();
+        } finally {
+            if (graphics != null) graphics.dispose();
+            if (source != null) source.flush();
+            if (output != null) output.flush();
+        }
+    }
     private void returnToParent() {
         this.minecraft.gui.setScreen(parent);
     }
@@ -754,6 +1183,7 @@ public final class Canvas2DScreen extends Screen {
         float opacity = 1.0F;
         List<Stroke> strokes = new ArrayList<>();
         List<TextItem> texts = new ArrayList<>();
+        List<ShapeItem> shapes = new ArrayList<>();
         Layer(String name) { this.name = name; }
     }
 
@@ -761,7 +1191,27 @@ public final class Canvas2DScreen extends Screen {
         int color;
         int size;
         boolean eraser;
+        boolean eraseBackground;
         List<Point> points = new ArrayList<>();
+    }
+
+    private static final class ShapeItem {
+        String type;
+        float x1;
+        float y1;
+        float x2;
+        float y2;
+        int color;
+        int size;
+        ShapeItem(String type, float x1, float y1, float x2, float y2, int color, int size) {
+            this.type = type;
+            this.x1 = x1;
+            this.y1 = y1;
+            this.x2 = x2;
+            this.y2 = y2;
+            this.color = color;
+            this.size = size;
+        }
     }
 
     private static final class Point {

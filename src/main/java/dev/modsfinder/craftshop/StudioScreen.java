@@ -6,133 +6,207 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 public final class StudioScreen extends Screen {
     private static final Gson HISTORY_GSON = new Gson();
     private static final int HISTORY_LIMIT = 80;
+    private static final float MOVE_STEP = 0.25F;
+    private static final float ROTATE_STEP = 15.0F;
+    private static final float SCALE_STEP = 0.1F;
 
     private final Screen parent;
     private final Deque<String> undoHistory = new ArrayDeque<>();
     private final Deque<String> redoHistory = new ArrayDeque<>();
 
     private SceneProject project = new SceneProject();
-    private String activeTool = "Select";
     private String status = "Ready";
     private String selectedObjectId;
     private EditBox projectNameField;
-    private boolean draggingViewport;
-    private boolean dragChanged;
+    private int scenePage;
 
     public StudioScreen(Screen parent) {
+        this(parent, null);
+    }
+
+    public StudioScreen(Screen parent, Path initialImage) {
         super(Component.literal("CraftShop 3D Studio"));
         this.parent = parent;
+        if (initialImage != null) {
+            try {
+                project.canvasImage = ProjectManager.importCanvasImage(initialImage);
+                status = "Gallery PNG loaded";
+            } catch (IOException exception) {
+                CraftShop.LOGGER.error("Could not import selected gallery PNG", exception);
+                status = "Could not load selected PNG";
+            }
+        }
     }
 
-    private int leftPanelWidth() {
-        return 82;
-    }
-
-    private int rightPanelWidth() {
-        return Math.max(174, Math.min(214, this.width / 4));
-    }
-
-    private int rightPanelLeft() {
-        return this.width - rightPanelWidth() - 12;
-    }
-
-    private int timelineTop() {
-        return this.height - 132;
-    }
-
-    private int viewportLeft() {
-        return leftPanelWidth() + 14;
-    }
-
-    private int viewportRight() {
-        return rightPanelLeft() - 10;
-    }
+    private int leftX() { return 12; }
+    private int leftWidth() { return 150; }
+    private int middleX() { return 172; }
+    private int middleWidth() { return 258; }
+    private int rightX() { return 440; }
+    private int rightWidth() { return Math.max(150, this.width - rightX() - 12); }
+    private int panelTop() { return 68; }
+    private int panelBottom() { return this.height - 30; }
 
     private SceneProject.SceneObject selectedObject() {
-        if (selectedObjectId == null || project.objects == null) return null;
-        return project.objects.stream().filter(object -> selectedObjectId.equals(object.id)).findFirst().orElse(null);
+        String targetId = selectedObjectId == null || selectedObjectId.isBlank()
+                ? project.selectedObjectId : selectedObjectId;
+        if (targetId == null || targetId.isBlank() || project.objects == null) return null;
+        return project.objects.stream()
+                .filter(object -> targetId.equals(object.id))
+                .findFirst().orElse(null);
     }
 
     @Override
     protected void init() {
-        int left = 16;
-        int top = 76;
+        int top = 10;
+        addButton("New", 10, top, 42, 20, this::newProject);
+        addButton("Open", 55, top, 46, 20, this::openProjectBrowser);
+        addButton("Save", 104, top, 44, 20, this::saveProject);
 
-        addRenderableWidget(toolButton("Select", left, top));
-        addRenderableWidget(toolButton("Move", left, top + 25));
-        addRenderableWidget(toolButton("Rotate", left, top + 50));
-        addRenderableWidget(toolButton("Scale", left, top + 75));
-        addRenderableWidget(toolButton("Orbit", left, top + 100));
-        addRenderableWidget(toolButton("Pan", left, top + 125));
-        addRenderableWidget(toolButton("Zoom", left, top + 150));
-        addRenderableWidget(Button.builder(Component.literal("Add Block"), button -> openAssetPicker(false))
-                .bounds(left, top + 178, 66, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Add Entity"), button -> openAssetPicker(true))
-                .bounds(left, top + 202, 66, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Export PNG"), button -> exportViewport())
-                .bounds(left, top + 226, 66, 20).build());
+        addButton("PNG", 151, top, 42, 20, this::choosePng);
+        addButton("Render", 197, top, 54, 20, this::renderPng);
+        addButton("Viewport", 255, top, 54, 20, this::previewScene);
 
-        addRenderableWidget(Button.builder(Component.literal("New"), button -> newProject())
-                .bounds(174, 12, 48, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Open"), button -> openProjectBrowser())
-                .bounds(226, 12, 52, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Save"), button -> saveProject())
-                .bounds(282, 12, 52, 20).build());
-
-        projectNameField = new EditBox(this.font, 340, 12, 142, 20, Component.literal("Project name"));
+        int nameX = 315;
+        int nameWidth = Math.max(72, this.width - 457);
+        projectNameField = new EditBox(this.font, nameX, top, nameWidth, 20,
+                Component.literal("Project name"));
         projectNameField.setMaxLength(64);
-        projectNameField.setValue(project.name);
+        projectNameField.setValue(project.name == null ? "Untitled Scene" : project.name);
         addRenderableWidget(projectNameField);
 
-        addRenderableWidget(Button.builder(Component.literal("Add Cube"), button -> addCube())
-                .bounds(490, 12, 68, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Duplicate"), button -> duplicateSelected())
-                .bounds(562, 12, 68, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Delete"), button -> deleteSelected())
-                .bounds(634, 12, 58, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("2D Editor"), button ->
-                this.minecraft.gui.setScreen(new Canvas2DScreen(this)))
-                .bounds(700, 12, 68, 20).build());
-        addRenderableWidget(Button.builder(Component.literal("Gallery"), button -> returnToParent())
-                .bounds(this.width - 82, 12, 68, 20).build());
+        addButton("2D PNG", this.width - 132, top, 62, 20, this::open2DEditor);
+        addButton("Gallery", this.width - 64, top, 54, 20, this::returnToParent);
 
-        int row = 0;
-        for (SceneProject.SceneObject object : project.objects) {
-            if (row >= 4) break;
-            final String id = object.id;
-            int y = 66 + 40 + row * 19;
-            addRenderableWidget(Button.builder(Component.literal(
-                    (id.equals(selectedObjectId) ? "> " : "   ") + trim(object.name, 18)
-            ), button -> {
+        int buttonX = leftX() + 10;
+        int buttonWidth = leftWidth() - 20;
+        int y = 100;
+        addButton("Place Block", buttonX, y, buttonWidth, 22, () -> openAssetPicker(false));
+        addButton("Spawn Mob", buttonX, y + 28, buttonWidth, 22, () -> openAssetPicker(true));
+        addButton("Add Cube", buttonX, y + 56, buttonWidth, 22, this::addCube);
+        addButton("Import World", buttonX, y + 84, buttonWidth, 22, this::importNearbyWorld);
+
+        int cameraY = 224;
+        int smallW = 41;
+        addButton("Cam <", buttonX, cameraY, smallW, 20, () -> moveCamera(-1, 0, 0));
+        addButton("Cam >", buttonX + 44, cameraY, smallW, 20, () -> moveCamera(1, 0, 0));
+        addButton("Cam ^", buttonX + 88, cameraY, smallW, 20, () -> moveCamera(0, 1, 0));
+        addButton("Cam v", buttonX, cameraY + 25, smallW, 20, () -> moveCamera(0, -1, 0));
+        addButton("Forward", buttonX + 44, cameraY + 25, smallW, 20,
+                () -> moveCamera(0, 0, 1));
+        addButton("Back", buttonX + 88, cameraY + 25, smallW, 20,
+                () -> moveCamera(0, 0, -1));
+        addButton("Reset", buttonX, cameraY + 52, buttonWidth, 20, this::resetCamera);
+        addButton("Yaw-", buttonX, cameraY + 79, smallW, 20, () -> rotateCamera(-10.0F, 0.0F));
+        addButton("Yaw+", buttonX + 44, cameraY + 79, smallW, 20, () -> rotateCamera(10.0F, 0.0F));
+        addButton("Pit-", buttonX + 88, cameraY + 79, smallW, 20, () -> rotateCamera(0.0F, -10.0F));
+        addButton("Pit+", buttonX, cameraY + 104, smallW, 20, () -> rotateCamera(0.0F, 10.0F));
+        addButton("Zoom+", buttonX + 44, cameraY + 104, smallW, 20, () -> zoomCamera(0.1F));
+        addButton("Zoom-", buttonX + 88, cameraY + 104, smallW, 20, () -> zoomCamera(-0.1F));
+        addButton("AO: " + (project.ambientOcclusion ? "ON" : "OFF"), buttonX,
+                cameraY + 132, buttonWidth, 20, this::toggleAmbientOcclusion);
+        addButton("Light-", buttonX, cameraY + 160, smallW, 20, () -> adjustLightYaw(-10.0F));
+        addButton("Light+", buttonX + 44, cameraY + 160, smallW, 20, () -> adjustLightYaw(10.0F));
+        addButton("Amb-", buttonX + 88, cameraY + 160, smallW, 20, () -> adjustAmbientLight(-0.05F));
+        addButton("Amb+", buttonX, cameraY + 185, smallW, 20, () -> adjustAmbientLight(0.05F));
+
+        int mx = middleX() + 10;
+        int pairW = 52;
+        int pairGap = 4;
+        SceneProject.SceneObject selected = selectedObject();
+
+        addButton("X -", mx, 146, pairW, 20, () -> nudge(0, -MOVE_STEP));
+        addButton("X +", mx + pairW + pairGap, 146, pairW, 20, () -> nudge(0, MOVE_STEP));
+        addButton("Y -", mx + (pairW + pairGap) * 2, 146, pairW, 20,
+                () -> nudge(1, -MOVE_STEP));
+        addButton("Y +", mx + (pairW + pairGap) * 3, 146, pairW, 20,
+                () -> nudge(1, MOVE_STEP));
+        addButton("Z -", mx, 170, pairW, 20, () -> nudge(2, -MOVE_STEP));
+        addButton("Z +", mx + pairW + pairGap, 170, pairW, 20, () -> nudge(2, MOVE_STEP));
+
+        addButton("X -", mx, 202, pairW, 20, () -> rotate(0, -ROTATE_STEP));
+        addButton("X +", mx + pairW + pairGap, 202, pairW, 20, () -> rotate(0, ROTATE_STEP));
+        addButton("Y -", mx + (pairW + pairGap) * 2, 202, pairW, 20,
+                () -> rotate(1, -ROTATE_STEP));
+        addButton("Y +", mx + (pairW + pairGap) * 3, 202, pairW, 20,
+                () -> rotate(1, ROTATE_STEP));
+        addButton("Z -", mx, 226, pairW, 20, () -> rotate(2, -ROTATE_STEP));
+        addButton("Z +", mx + pairW + pairGap, 226, pairW, 20, () -> rotate(2, ROTATE_STEP));
+
+        int scaleButtonWidth = 36;
+        addButton("X-", mx, 276, scaleButtonWidth, 20, () -> scaleAxis(0, 1.0F - SCALE_STEP));
+        addButton("X+", mx + 38, 276, scaleButtonWidth, 20, () -> scaleAxis(0, 1.0F + SCALE_STEP));
+        addButton("Y-", mx + 76, 276, scaleButtonWidth, 20, () -> scaleAxis(1, 1.0F - SCALE_STEP));
+        addButton("Y+", mx + 114, 276, scaleButtonWidth, 20, () -> scaleAxis(1, 1.0F + SCALE_STEP));
+        addButton("Z-", mx + 152, 276, scaleButtonWidth, 20, () -> scaleAxis(2, 1.0F - SCALE_STEP));
+        addButton("Z+", mx + 190, 276, scaleButtonWidth, 20, () -> scaleAxis(2, 1.0F + SCALE_STEP));
+        addButton("Uniform -", mx, 302, 78, 20, () -> scale(1.0F - SCALE_STEP));
+        addButton("Uniform +", mx + 82, 302, 78, 20, () -> scale(1.0F + SCALE_STEP));
+        addButton("Duplicate", mx, 334, 78, 20, this::duplicateSelected);
+        addButton("Delete", mx + 82, 334, 78, 20, this::deleteSelected);
+        addButton(selected != null && selected.visible ? "Hide" : "Show",
+                mx, 360, 78, 20, this::toggleVisibility);
+        addButton(selected != null && selected.locked ? "Unlock" : "Lock",
+                mx + 82, 360, 78, 20, this::toggleLock);
+        addButton("Undo", mx, 390, 78, 20, this::undo);
+        addButton("Redo", mx + 82, 390, 78, 20, this::redo);
+        addButton("Reset Transform", mx, 418, 160, 20, this::resetSelectedTransform);
+        addButton("KEYFRAME TIMELINE", mx, 446, 160, 20, this::openTimeline);
+
+        int listX = rightX() + 8;
+        int listW = rightWidth() - 16;
+        int pageSize = visibleObjectRows();
+        int start = scenePage * pageSize;
+        int end = Math.min(project.objects.size(), start + pageSize);
+        for (int i = start; i < end; i++) {
+            SceneProject.SceneObject object = project.objects.get(i);
+            String id = object.id;
+            String prefix = id.equals(selectedObjectId) ? "> " : "";
+            String lock = object.locked ? " [L]" : "";
+            String hidden = object.visible ? "" : " [H]";
+            String label = prefix + trim(object.name, Math.max(8, listW / 6 - 8)) + lock + hidden;
+            int rowY = 102 + (i - start) * 24;
+            addButton(label, listX, rowY, listW, 21, () -> {
                 selectedObjectId = id;
+                project.selectedObjectId = id;
                 status = "Selected " + object.name;
-                rebuildStudioWidgets();
-            }).bounds(rightPanelLeft() + 8, y, rightPanelWidth() - 16, 18).build());
-            row++;
+                rebuild();
+            });
         }
+
+        int pageY = this.height - 54;
+        addButton("Prev", listX, pageY, 54, 20, () -> {
+            scenePage = Math.max(0, scenePage - 1);
+            rebuild();
+        });
+        addButton("Next", listX + 58, pageY, 54, 20, () -> {
+            if ((scenePage + 1) * pageSize < project.objects.size()) scenePage++;
+            rebuild();
+        });
     }
 
-    private Button toolButton(String tool, int x, int y) {
-        return Button.builder(Component.literal((activeTool.equals(tool) ? "> " : "") + tool),
-                button -> {
-                    activeTool = tool;
-                    status = tool + " tool selected";
-                    rebuildStudioWidgets();
-                }).bounds(x, y, 66, 20).build();
+    private int visibleObjectRows() {
+        return Math.max(1, Math.min(12, (this.height - 174) / 24));
     }
 
-    private void rebuildStudioWidgets() {
+    private void addButton(String label, int x, int y, int width, int height, Runnable action) {
+        addRenderableWidget(Button.builder(Component.literal(label), button -> action.run())
+                .bounds(x, y, Math.max(1, width), height).build());
+    }
+
+    private void rebuild() {
         clearWidgets();
         init();
     }
@@ -140,232 +214,95 @@ public final class StudioScreen extends Screen {
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractBackground(graphics, mouseX, mouseY, delta);
-
-        graphics.fill(0, 0, this.width, this.height, 0xFF101319);
-        graphics.fill(8, 8, this.width - 8, 36, 0xFF1D232D);
-        graphics.fill(8, 40, this.width - 8, 58, 0xFF171C24);
-
-        int viewportTop = 66;
-        int viewportBottom = timelineTop() - 8;
-        int left = viewportLeft();
-        int right = viewportRight();
-        int rightPanel = rightPanelLeft();
-
-        graphics.fill(10, viewportTop, 10 + leftPanelWidth(), viewportBottom, 0xFF202630);
-        graphics.fill(left, viewportTop, right, viewportBottom, 0xFF111720);
-        graphics.fill(rightPanel, viewportTop, this.width - 10, viewportBottom, 0xFF202630);
-        graphics.fill(10, timelineTop(), this.width - 10, this.height - 10, 0xFF1B212A);
-
-        graphics.outline(left, viewportTop, right - left, viewportBottom - viewportTop, 0xFF394655);
-        graphics.outline(rightPanel, viewportTop, this.width - rightPanel - 10,
-                viewportBottom - viewportTop, 0xFF394655);
-        graphics.outline(10, timelineTop(), this.width - 20, this.height - timelineTop() - 10, 0xFF394655);
+        graphics.fill(0, 0, this.width, this.height, 0xFF090D13);
+        graphics.fill(0, 0, this.width, 3, 0xFF36C8D9);
+        graphics.fill(8, 8, this.width - 8, 38, 0xFF151E2A);
+        graphics.fill(8, 39, this.width - 8, 62, 0xFF101720);
+        graphics.fill(leftX(), panelTop(), leftX() + leftWidth(), panelBottom(), 0xFF151E29);
+        graphics.fill(middleX(), panelTop(), middleX() + middleWidth(), panelBottom(), 0xFF111923);
+        graphics.fill(rightX(), panelTop(), this.width - 12, panelBottom(), 0xFF151E29);
+        graphics.fill(leftX(), panelTop(), leftX() + leftWidth(), panelTop() + 2, 0xFF36C8D9);
+        graphics.fill(middleX(), panelTop(), middleX() + middleWidth(), panelTop() + 2, 0xFF8C78E8);
+        graphics.fill(rightX(), panelTop(), this.width - 12, panelTop() + 2, 0xFF36C8D9);
+        graphics.outline(leftX(), panelTop(), leftWidth(), panelBottom() - panelTop(), 0xFF2D3B4B);
+        graphics.outline(middleX(), panelTop(), middleWidth(), panelBottom() - panelTop(), 0xFF2D3B4B);
+        graphics.outline(rightX(), panelTop(), this.width - rightX() - 12,
+                panelBottom() - panelTop(), 0xFF2D3B4B);
+        graphics.fill(8, this.height - 23, this.width - 8, this.height - 8, 0xFF101720);
+        graphics.fill(8, this.height - 23, this.width - 8, this.height - 22, 0xFF26384A);
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
-
-        int viewportTop = 66;
-        int viewportBottom = timelineTop() - 8;
-        int left = viewportLeft();
-        int right = viewportRight();
-        int rightPanel = rightPanelLeft();
-        int centerX = (left + right) / 2;
-        int centerY = (viewportTop + viewportBottom) / 2;
-
-        graphics.text(this.font, "CRAFTSHOP", 18, 14, 0xFFFFFFFF, true);
-        graphics.text(this.font, "3D STUDIO", 104, 14, 0xFF55DDEE, true);
-        graphics.text(this.font, "File    Edit    View    Add    Object    Render    Help",
-                18, 46, 0xFFB9C4D1, false);
-        graphics.text(this.font, trim(status, 28), Math.max(320, this.width - 190), 46, 0xFF9DDDAA, false);
-
-        graphics.text(this.font, "TOOL SHELF", 18, 68, 0xFF9AA8B8, false);
-        graphics.text(this.font, "TRANSFORM", 18, 238, 0xFF6F8194, false);
-        graphics.text(this.font, "Active: " + activeTool, 18, 255, 0xFFB5C0CD, false);
-
-        graphics.fill(left + 1, viewportTop + 1, right - 1, viewportTop + 20, 0xFF1C2530);
-        graphics.text(this.font, "VIEWPORT  /  PERSPECTIVE", left + 10, viewportTop + 7, 0xFF9EADBD, false);
-        graphics.text(this.font, "SOLID", Math.max(left + 150, right - 52), viewportTop + 7, 0xFF55DDEE, false);
-
-        int gridStartY = viewportTop + 28;
-        int gridEndY = viewportBottom - 12;
-        for (int x = left + 18; x < right - 8; x += 24) {
-            graphics.verticalLine(x, gridStartY, gridEndY, 0x223B4A5B);
+        graphics.text(this.font, "CRAFTSHOP", 16, 18, 0xFFECF7FF, true);
+        graphics.text(this.font, "CREATIVE SCENE STUDIO", 112, 19, 0xFF6F879C, false);
+        graphics.text(this.font, "3D WORKSPACE", 16, 49, 0xFF55DDEE, true);
+        String pngLabel = "No PNG selected";
+        if (project.canvasImage != null && !project.canvasImage.isBlank()) {
+            int separator = Math.max(project.canvasImage.lastIndexOf('/'), project.canvasImage.lastIndexOf('\\'));
+            pngLabel = separator >= 0 ? project.canvasImage.substring(separator + 1) : project.canvasImage;
         }
-        for (int y = gridStartY; y < gridEndY; y += 24) {
-            graphics.horizontalLine(left + 8, right - 8, y, 0x223B4A5B);
-        }
+        graphics.text(this.font, "SOURCE  /  " + trim(pngLabel, 30), 16, 59, 0xFF9AA8B8, false);
+        graphics.text(this.font, trim(status, 54),
+                Math.max(180, this.width - this.font.width(trim(status, 54)) - 14), 48,
+                0xFF9DDDAA, false);
 
-        graphics.horizontalLine(centerX - 78, centerX + 78, centerY, 0xAA4C8ED8);
-        graphics.verticalLine(centerX, centerY - 62, centerY + 62, 0xAA55B879);
-        graphics.fill(centerX - 2, centerY - 2, centerX + 3, centerY + 3, 0xFFFFFFFF);
-        graphics.text(this.font, "X", centerX + 82, centerY - 4, 0xFF6FA8FF, true);
-        graphics.text(this.font, "Y", centerX + 5, centerY - 70, 0xFF70D58E, true);
-        graphics.text(this.font, "Z", centerX - 90, centerY + 7, 0xFFE28A72, true);
+        graphics.text(this.font, "01  /  ADD TO SCENE", leftX() + 10, 83, 0xFF55DDEE, true);
+        graphics.text(this.font, "CAMERA CONTROLS", leftX() + 10, 204, 0xFF9AA8B8, true);
+        graphics.fill(leftX() + 10, 218, leftX() + leftWidth() - 10, 219, 0xFF344354);
 
-        for (SceneProject.SceneObject object : project.objects) {
-            if (!object.visible) continue;
-            int[] screen = projectToScreen(object.transform.x, object.transform.y, object.transform.z);
-            int x = screen[0];
-            int y = screen[1];
-            if (x < left + 8 || x > right - 8 || y < viewportTop + 24 || y > viewportBottom - 8) continue;
-
-            boolean selected = object.id.equals(selectedObjectId);
-            int markerColor = selected ? 0xFFFFD166 : 0xFF55DDEE;
-            drawWireCube(graphics, object, selected ? 0xFFFFD166 : 0xFF7B91A8);
-            SceneAssetRenderer.extract(graphics, object, this.minecraft, x, y, 18);
-            graphics.fill(x - 3, y - 3, x + 4, y + 4, markerColor);
-            if (selected) graphics.outline(x - 7, y - 7, 14, 14, 0xFFFFFFFF);
-            graphics.text(this.font, object.name, x + 13, y - 4, selected ? 0xFFFFD166 : 0xFFD0D9E2, false);
-        }
-
-        if (project.objects.isEmpty()) {
-            graphics.centeredText(this.font, "Empty scene", centerX, centerY + 76, 0xFF8495A8);
-            graphics.centeredText(this.font, "Use Add Cube to create a transformable 3D object.",
-                    centerX, centerY + 91, 0xFF68798B);
-        }
-
-        graphics.text(this.font, "OUTLINER", rightPanel + 10, viewportTop + 9, 0xFF55DDEE, true);
-        graphics.horizontalLine(rightPanel + 8, this.width - 18, viewportTop + 27, 0xFF465363);
-        graphics.text(this.font, "v  Scene", rightPanel + 12, viewportTop + 40, 0xFFFFFFFF, false);
-        graphics.text(this.font, "   v  Collection", rightPanel + 12, viewportTop + 59, 0xFFB5C0CD, false);
-        if (project.objects.isEmpty()) {
-            graphics.text(this.font, "      (empty)", rightPanel + 12, viewportTop + 82, 0xFF718397, false);
-        }
-
-        int propertiesTop = viewportTop + 122;
-        graphics.horizontalLine(rightPanel + 8, this.width - 18, propertiesTop, 0xFF465363);
-        graphics.text(this.font, "PROPERTIES", rightPanel + 10, propertiesTop + 10, 0xFF55DDEE, true);
+        graphics.text(this.font, "02  /  TRANSFORM", middleX() + 10, 83, 0xFFB8A7FF, true);
+        graphics.fill(middleX() + 10, 126, middleX() + middleWidth() - 10, 127, 0xFF344354);
         SceneProject.SceneObject selected = selectedObject();
         if (selected == null) {
-            graphics.text(this.font, "No object selected", rightPanel + 10, propertiesTop + 34, 0xFF8995A4, false);
-            graphics.text(this.font, "Select an item in the", rightPanel + 10, propertiesTop + 52, 0xFF68798B, false);
-            graphics.text(this.font, "viewport or Outliner.", rightPanel + 10, propertiesTop + 66, 0xFF68798B, false);
+            graphics.text(this.font, "Select an object from the list.", middleX() + 10, 102,
+                    0xFF8995A4, false);
         } else {
-            graphics.text(this.font, trim(selected.name, 24), rightPanel + 10, propertiesTop + 32, 0xFFFFFFFF, false);
-            graphics.text(this.font, "LOC  " + format(selected.transform.x) + " / "
-                    + format(selected.transform.y) + " / " + format(selected.transform.z),
-                    rightPanel + 10, propertiesTop + 54, 0xFF8995A4, false);
-            graphics.text(this.font, "ROT  " + format(selected.transform.rotationX) + " / "
-                    + format(selected.transform.rotationY), rightPanel + 10, propertiesTop + 73, 0xFF8995A4, false);
-            graphics.text(this.font, "SCL  " + format(selected.transform.scaleX) + " / "
-                    + format(selected.transform.scaleY) + " / " + format(selected.transform.scaleZ),
-                    rightPanel + 10, propertiesTop + 92, 0xFF8995A4, false);
+            graphics.text(this.font, trim(selected.name, 32), middleX() + 10, 102,
+                    0xFFFFFFFF, false);
+            graphics.text(this.font, selected.kind + "  •  " + selected.assetId,
+                    middleX() + 10, 116, 0xFF8995A4, false);
+            graphics.text(this.font, selected.locked ? "Locked" : "Unlocked",
+                    middleX() + 174, 102, selected.locked ? 0xFFFFB86B : 0xFF9DDDAA, false);
         }
+        graphics.text(this.font, "MOVE  /  0.25 BLOCK", middleX() + 10, 136,
+                0xFF9AA8B8, false);
+        graphics.text(this.font, "ROTATE  /  15 DEGREES", middleX() + 10, 188,
+                0xFF9AA8B8, false);
+        graphics.text(this.font, "AXIS SCALE  /  X  Y  Z", middleX() + 10, 262,
+                0xFF9AA8B8, false);
+        graphics.text(this.font, "UNIFORM SCALE", middleX() + 10, 290,
+                0xFF9AA8B8, false);
+        graphics.text(this.font, "OBJECT ACTIONS", middleX() + 10, 320,
+                0xFF9AA8B8, false);
+        graphics.text(this.font, "HISTORY", middleX() + 10, 376,
+                0xFF9AA8B8, false);
 
-        int timelineLeft = 20;
-        int timelineRight = this.width - 20;
-        graphics.text(this.font, "TIMELINE", timelineLeft, timelineTop() + 10, 0xFF55DDEE, true);
-        graphics.text(this.font, "FRAME", timelineLeft, timelineTop() + 31, 0xFF8D9BAB, false);
-        int rulerY = timelineTop() + 48;
-        graphics.horizontalLine(timelineLeft + 52, timelineRight - 8, rulerY, 0xFF596879);
-        int rulerWidth = Math.max(1, timelineRight - timelineLeft - 70);
-        for (int frame = 0; frame <= 100; frame += 5) {
-            int x = timelineLeft + 54 + (rulerWidth * frame / 100);
-            int tickHeight = frame % 10 == 0 ? 10 : 5;
-            graphics.verticalLine(x, rulerY - tickHeight / 2, rulerY + tickHeight / 2, 0xFF8797A8);
-            if (frame % 10 == 0) {
-                graphics.text(this.font, Integer.toString(frame), x - 5, rulerY + 9, 0xFF8797A8, false);
-            }
+        graphics.text(this.font, "03  /  HIERARCHY", rightX() + 10, 83, 0xFF55DDEE, true);
+        graphics.text(this.font, project.objects.size() + " ITEMS",
+                this.width - 74, 83, 0xFF8296AA, false);
+        graphics.fill(rightX() + 10, 94, this.width - 22, 95, 0xFF344354);
+        if (project.objects.isEmpty()) {
+            graphics.fill(rightX() + 12, 112, this.width - 24, 176, 0xFF101923);
+            graphics.outline(rightX() + 12, 112, this.width - rightX() - 36, 64, 0xFF2D3B4B);
+            graphics.text(this.font, "SCENE IS EMPTY", rightX() + 22, 128, 0xFFE6F1FA, true);
+            graphics.text(this.font, "Add a block, mob or cube", rightX() + 22, 147,
+                    0xFF8296AA, false);
+            graphics.text(this.font, "using the tools on the left.", rightX() + 22, 160,
+                    0xFF8296AA, false);
         }
-        graphics.text(this.font, selected == null ? "Scene" : selected.name,
-                timelineLeft + 4, timelineTop() + 78, 0xFFB5C0CD, false);
-        graphics.fill(timelineLeft + 54, timelineTop() + 73, timelineRight - 8, timelineTop() + 88, 0xFF293746);
-        graphics.text(this.font, "Keyframes will be added in the animation workflow.",
-                timelineLeft + 62, timelineTop() + 76, 0xFF718397, false);
-
-        graphics.fill(0, this.height - 8, this.width, this.height, 0xFF0B0E13);
-        graphics.text(this.font, "CRAFTSHOP  •  " + project.name + "  •  " + project.objects.size() + " objects",
-                10, this.height - 7, 0xFF7F8D9C, false);
-        graphics.text(this.font, "G Move  R Rotate  S Scale  Ctrl+Z Undo  Ctrl+Y Redo",
-                Math.max(260, this.width - 310), this.height - 7, 0xFF7F8D9C, false);
-    }
-
-    private void drawWireCube(GuiGraphicsExtractor graphics, SceneProject.SceneObject object, int color) {
-        float half = 0.5F;
-        float[][] local = {
-                {-half, -half, -half}, {half, -half, -half},
-                {half, half, -half}, {-half, half, -half},
-                {-half, -half, half}, {half, -half, half},
-                {half, half, half}, {-half, half, half}
-        };
-        int[][] edges = {
-                {0, 1}, {1, 2}, {2, 3}, {3, 0},
-                {4, 5}, {5, 6}, {6, 7}, {7, 4},
-                {0, 4}, {1, 5}, {2, 6}, {3, 7}
-        };
-        int[][] projected = new int[8][];
-        for (int i = 0; i < local.length; i++) {
-            projected[i] = projectObjectPoint(object, local[i][0], local[i][1], local[i][2]);
-        }
-        for (int[] edge : edges) {
-            drawLine(graphics, projected[edge[0]][0], projected[edge[0]][1],
-                    projected[edge[1]][0], projected[edge[1]][1], color);
-        }
-    }
-
-    private int[] projectObjectPoint(SceneProject.SceneObject object, float localX, float localY, float localZ) {
-        SceneProject.Transform transform = object.transform;
-        double x = localX * transform.scaleX;
-        double y = localY * transform.scaleY;
-        double z = localZ * transform.scaleZ;
-
-        double rx = Math.toRadians(transform.rotationX);
-        double ry = Math.toRadians(transform.rotationY);
-        double rz = Math.toRadians(transform.rotationZ);
-
-        double y1 = y * Math.cos(rx) - z * Math.sin(rx);
-        double z1 = y * Math.sin(rx) + z * Math.cos(rx);
-        double x2 = x * Math.cos(ry) + z1 * Math.sin(ry);
-        double z2 = -x * Math.sin(ry) + z1 * Math.cos(ry);
-        double x3 = x2 * Math.cos(rz) - y1 * Math.sin(rz);
-        double y3 = x2 * Math.sin(rz) + y1 * Math.cos(rz);
-
-        return projectToScreen(transform.x + (float) x3, transform.y + (float) y3,
-                transform.z + (float) z2);
-    }
-
-    private static void drawLine(GuiGraphicsExtractor graphics, int x1, int y1, int x2, int y2, int color) {
-        int steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
-        if (steps == 0) {
-            graphics.fill(x1, y1, x1 + 2, y1 + 2, color);
-            return;
-        }
-        for (int step = 0; step <= steps; step++) {
-            float progress = (float) step / steps;
-            int x = Math.round(x1 + (x2 - x1) * progress);
-            int y = Math.round(y1 + (y2 - y1) * progress);
-            graphics.fill(x, y, x + 2, y + 2, color);
-        }
-    }
-
-    private int[] projectToScreen(float worldX, float worldY, float worldZ) {
-        SceneProject.Camera camera = project.camera;
-        double yaw = Math.toRadians(camera.yaw);
-        double pitch = Math.toRadians(camera.pitch);
-        double dx = worldX - camera.targetX;
-        double dy = worldY - camera.targetY;
-        double dz = worldZ - camera.targetZ;
-
-        double rotatedX = dx * Math.cos(yaw) - dz * Math.sin(yaw);
-        double rotatedZ = dx * Math.sin(yaw) + dz * Math.cos(yaw);
-        double rotatedY = dy * Math.cos(pitch) - rotatedZ * Math.sin(pitch);
-        double depth = dy * Math.sin(pitch) + rotatedZ * Math.cos(pitch);
-        double perspective = 320.0 / Math.max(80.0, 320.0 + depth * 18.0);
-        double scale = 30.0 * camera.zoom * perspective;
-
-        int screenX = (int) Math.round((viewportLeft() + viewportRight()) / 2.0 + rotatedX * scale);
-        int screenY = (int) Math.round((66 + timelineTop() - 8) / 2.0 - rotatedY * scale);
-        return new int[]{screenX, screenY};
-    }
-
-    private static String format(float value) {
-        return String.format(java.util.Locale.ROOT, "%.2f", value);
+        graphics.text(this.font, "PROJECT  /  " + trim(project.name, 34),
+                16, this.height - 13, 0xFF91A5B9, false);
+        graphics.text(this.font, "CTRL+Z UNDO     CTRL+Y REDO     CTRL+D DUPLICATE",
+                Math.max(250, this.width / 2 - 105), this.height - 13, 0xFF62788E, false);
+        graphics.text(this.font, "CRAFTSHOP  •  " + project.objects.size() + " OBJECTS",
+                this.width - 150, this.height - 13, 0xFF55DDEE, true);
     }
 
     private static String trim(String value, int maximum) {
         if (value == null) return "";
+        if (maximum < 4) return value.substring(0, Math.min(value.length(), maximum));
         return value.length() <= maximum ? value : value.substring(0, maximum - 3) + "...";
     }
 
@@ -375,34 +312,46 @@ public final class StudioScreen extends Screen {
         redoHistory.clear();
     }
 
+    private void validateProject() {
+        if (project == null) project = new SceneProject();
+        if (project.objects == null) project.objects = new java.util.ArrayList<>();
+        if (project.camera == null) project.camera = new SceneProject.Camera();
+        project.objects.removeIf(object -> object == null);
+        for (SceneProject.SceneObject object : project.objects) {
+            if (object.id == null || object.id.isBlank()) object.id = UUID.randomUUID().toString();
+            if (object.transform == null) object.transform = new SceneProject.Transform();
+            if (object.name == null) object.name = "Object";
+            if (object.kind == null) object.kind = "mesh_cube";
+            if (object.assetId == null) object.assetId = "minecraft:stone";
+        }
+        if (selectedObject() == null) selectedObjectId = null;
+        scenePage = Math.min(scenePage, Math.max(0, (project.objects.size() - 1) / visibleObjectRows()));
+    }
+
     private void undo() {
         if (undoHistory.isEmpty()) {
             status = "Nothing to undo";
+            rebuild();
             return;
         }
         redoHistory.push(HISTORY_GSON.toJson(project));
         project = HISTORY_GSON.fromJson(undoHistory.pop(), SceneProject.class);
-        validateSelection();
-        status = "Undo";
-        rebuildStudioWidgets();
+        validateProject();
+        status = "Undo complete";
+        rebuild();
     }
 
     private void redo() {
         if (redoHistory.isEmpty()) {
             status = "Nothing to redo";
+            rebuild();
             return;
         }
         undoHistory.push(HISTORY_GSON.toJson(project));
         project = HISTORY_GSON.fromJson(redoHistory.pop(), SceneProject.class);
-        validateSelection();
-        status = "Redo";
-        rebuildStudioWidgets();
-    }
-
-    private void validateSelection() {
-        if (project.objects == null) project.objects = new java.util.ArrayList<>();
-        if (project.camera == null) project.camera = new SceneProject.Camera();
-        if (selectedObject() == null) selectedObjectId = null;
+        validateProject();
+        status = "Redo complete";
+        rebuild();
     }
 
     private void openAssetPicker(boolean entities) {
@@ -415,16 +364,80 @@ public final class StudioScreen extends Screen {
             object.transform.x = project.objects.size() * 1.25F;
             project.objects.add(object);
             selectedObjectId = object.id;
-            status = "Added " + asset.id();
-            rebuildStudioWidgets();
+            project.selectedObjectId = object.id;
+            scenePage = Math.max(0, (project.objects.size() - 1) / visibleObjectRows());
+            status = (asset.entity() ? "Spawned " : "Placed ") + asset.id();
+            rebuild();
         }));
     }
 
-    private void exportViewport() {
-        status = "Exporting viewport...";
-        SceneExporter.exportViewport(this.minecraft, viewportLeft() + 1, 87,
-                Math.max(1, viewportRight() - viewportLeft() - 2),
-                Math.max(1, timelineTop() - 96), message -> status = message);
+    private void importNearbyWorld() {
+        if (minecraft == null || minecraft.player == null || minecraft.level == null) {
+            status = "Join a world before importing blocks";
+            rebuild();
+            return;
+        }
+
+        checkpoint();
+        net.minecraft.core.BlockPos origin = minecraft.player.blockPosition();
+        int imported = 0;
+        int skippedUnloaded = 0;
+
+        // Capture a compact 16x16x16 region centred around the player. This
+        // produces a portable scene snapshot: later edits in the live world do
+        // not mutate the imported project.
+        for (int y = -8; y < 8; y++) {
+            for (int x = -8; x < 8; x++) {
+                for (int z = -8; z < 8; z++) {
+                    net.minecraft.core.BlockPos position = origin.offset(x, y, z);
+                    if (!minecraft.level.hasChunkAt(position)) {
+                        skippedUnloaded++;
+                        continue;
+                    }
+
+                    net.minecraft.world.level.block.state.BlockState state =
+                            minecraft.level.getBlockState(position);
+                    if (state.isAir()) continue;
+
+                    net.minecraft.resources.Identifier blockId =
+                            net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock());
+                    if (blockId == null) continue;
+
+                    SceneProject.SceneObject object = new SceneProject.SceneObject();
+                    object.kind = "minecraft_block";
+                    object.assetId = blockId.toString();
+                    object.name = blockId.toString();
+                    for (net.minecraft.world.level.block.state.properties.Property<?> property
+                            : state.getProperties()) {
+                        object.blockProperties.put(property.getName(),
+                                propertyValueName(state, property));
+                    }
+                    object.transform.x = x;
+                    object.transform.y = y;
+                    object.transform.z = z;
+                    project.objects.add(object);
+                    imported++;
+                }
+            }
+        }
+
+        if (imported == 0) {
+            undoHistory.pop();
+            status = "No non-air blocks found nearby";
+        } else {
+            selectedObjectId = project.objects.get(project.objects.size() - 1).id;
+            project.selectedObjectId = selectedObjectId;
+            scenePage = Math.max(0, (project.objects.size() - 1) / visibleObjectRows());
+            status = "Imported " + imported + " blocks from 16³ snapshot"
+                    + (skippedUnloaded > 0 ? " • skipped " + skippedUnloaded + " unloaded positions" : "");
+        }
+        rebuild();
+    }
+
+    private static <T extends Comparable<T>> String propertyValueName(
+            net.minecraft.world.level.block.state.BlockState state,
+            net.minecraft.world.level.block.state.properties.Property<T> property) {
+        return property.getName(state.getValue(property));
     }
 
     private void addCube() {
@@ -435,14 +448,70 @@ public final class StudioScreen extends Screen {
         object.transform.x = project.objects.size() * 1.5F;
         project.objects.add(object);
         selectedObjectId = object.id;
+        scenePage = Math.max(0, (project.objects.size() - 1) / visibleObjectRows());
         status = "Added " + object.name;
-        rebuildStudioWidgets();
+        rebuild();
+    }
+
+    private void withSelected(String action, Consumer<SceneProject.SceneObject> mutation) {
+        SceneProject.SceneObject selected = selectedObject();
+        if (selected == null) {
+            status = "Select an object first";
+            rebuild();
+            return;
+        }
+        if (selected.locked) {
+            status = "Object is locked";
+            rebuild();
+            return;
+        }
+        checkpoint();
+        mutation.accept(selected);
+        status = action + " • " + selected.name;
+        rebuild();
+    }
+
+    private void nudge(int axis, float amount) {
+        withSelected("Moved", object -> {
+            if (axis == 0) object.transform.x += amount;
+            else if (axis == 1) object.transform.y += amount;
+            else object.transform.z += amount;
+        });
+    }
+
+    private void rotate(int axis, float amount) {
+        withSelected("Rotated", object -> {
+            if (axis == 0) object.transform.rotationX += amount;
+            else if (axis == 1) object.transform.rotationY += amount;
+            else object.transform.rotationZ += amount;
+        });
+    }
+
+    private void scale(float factor) {
+        withSelected("Scaled", object -> {
+            object.transform.scaleX = clamp(object.transform.scaleX * factor, 0.05F, 20.0F);
+            object.transform.scaleY = clamp(object.transform.scaleY * factor, 0.05F, 20.0F);
+            object.transform.scaleZ = clamp(object.transform.scaleZ * factor, 0.05F, 20.0F);
+        });
+    }
+
+    private void scaleAxis(int axis, float factor) {
+        withSelected("Scaled axis", object -> {
+            if (axis == 0) object.transform.scaleX = clamp(object.transform.scaleX * factor, 0.05F, 20.0F);
+            else if (axis == 1) object.transform.scaleY = clamp(object.transform.scaleY * factor, 0.05F, 20.0F);
+            else object.transform.scaleZ = clamp(object.transform.scaleZ * factor, 0.05F, 20.0F);
+        });
+    }
+
+    private void resetSelectedTransform() {
+        withSelected("Transform reset", object -> object.transform = new SceneProject.Transform());
     }
 
     private void duplicateSelected() {
         SceneProject.SceneObject source = selectedObject();
         if (source == null) {
             status = "Select an object to duplicate";
+            rebuild();
             return;
         }
         checkpoint();
@@ -451,8 +520,10 @@ public final class StudioScreen extends Screen {
         copy.name = source.name + " Copy";
         copy.kind = source.kind;
         copy.assetId = source.assetId;
+        copy.blockProperties = source.blockProperties == null ? new java.util.LinkedHashMap<>()
+                : new java.util.LinkedHashMap<>(source.blockProperties);
         copy.visible = source.visible;
-        copy.locked = source.locked;
+        copy.locked = false;
         copy.transform.x = source.transform.x + 0.5F;
         copy.transform.y = source.transform.y;
         copy.transform.z = source.transform.z;
@@ -464,36 +535,209 @@ public final class StudioScreen extends Screen {
         copy.transform.scaleZ = source.transform.scaleZ;
         project.objects.add(copy);
         selectedObjectId = copy.id;
+        project.selectedObjectId = copy.id;
+        scenePage = Math.max(0, (project.objects.size() - 1) / visibleObjectRows());
         status = "Duplicated " + source.name;
-        rebuildStudioWidgets();
+        rebuild();
     }
 
     private void deleteSelected() {
         SceneProject.SceneObject selected = selectedObject();
         if (selected == null) {
             status = "Select an object to delete";
+            rebuild();
             return;
         }
         checkpoint();
-        project.objects.removeIf(object -> {
-            if (!selected.id.equals(object.id)) return false;
-            SceneAssetRenderer.forget(object.id);
-            return true;
-        });
+        project.objects.removeIf(object -> selected.id.equals(object.id));
+        SceneAssetRenderer.forget(selected.id);
         selectedObjectId = null;
+        project.selectedObjectId = "";
+        validateProject();
         status = "Deleted " + selected.name;
-        rebuildStudioWidgets();
+        rebuild();
+    }
+
+    private void toggleVisibility() {
+        SceneProject.SceneObject selected = selectedObject();
+        if (selected == null) {
+            status = "Select an object first";
+            rebuild();
+            return;
+        }
+        checkpoint();
+        selected.visible = !selected.visible;
+        status = selected.visible ? "Object shown" : "Object hidden";
+        rebuild();
+    }
+
+    private void toggleLock() {
+        SceneProject.SceneObject selected = selectedObject();
+        if (selected == null) {
+            status = "Select an object first";
+            rebuild();
+            return;
+        }
+        checkpoint();
+        selected.locked = !selected.locked;
+        status = selected.locked ? "Object locked" : "Object unlocked";
+        rebuild();
+    }
+
+    private void moveCamera(float side, float vertical, float forward) {
+        checkpoint();
+        SceneProject.Camera camera = project.camera;
+        double yaw = Math.toRadians(camera.yaw);
+        camera.x += (float) (Math.cos(yaw) * side - Math.sin(yaw) * forward) * MOVE_STEP;
+        camera.y += vertical * MOVE_STEP;
+        camera.z += (float) (-Math.sin(yaw) * side - Math.cos(yaw) * forward) * MOVE_STEP;
+        status = "Spectator camera position updated";
+        rebuild();
+    }
+
+    private void rotateCamera(float yaw, float pitch) {
+        checkpoint();
+        project.camera.yaw += yaw;
+        project.camera.pitch = clamp(project.camera.pitch + pitch, -89.0F, 89.0F);
+        status = "Spectator camera orientation updated";
+        rebuild();
+    }
+
+    private void zoomCamera(float amount) {
+        checkpoint();
+        project.camera.zoom = clamp(project.camera.zoom + amount, 0.2F, 4.0F);
+        status = "Camera zoom: " + String.format(java.util.Locale.ROOT, "%.1f", project.camera.zoom);
+        rebuild();
+    }
+
+    private void resetCamera() {
+        checkpoint();
+        project.camera = new SceneProject.Camera();
+        status = "Spectator camera reset";
+        rebuild();
+    }
+
+    private void toggleAmbientOcclusion() {
+        checkpoint();
+        project.ambientOcclusion = !project.ambientOcclusion;
+        status = "Screen-space ambient occlusion " + (project.ambientOcclusion ? "enabled" : "disabled");
+        rebuild();
+    }
+
+    private void adjustLightYaw(float amount) {
+        checkpoint();
+        project.lightYaw += amount;
+        if (project.lightYaw > 360.0F) project.lightYaw -= 360.0F;
+        if (project.lightYaw < -360.0F) project.lightYaw += 360.0F;
+        status = "Studio light direction: " + Math.round(project.lightYaw) + "°";
+        rebuild();
+    }
+
+    private void adjustAmbientLight(float amount) {
+        checkpoint();
+        project.ambientLight = clamp(project.ambientLight + amount, 0.15F, 0.95F);
+        status = "Ambient light: " + Math.round(project.ambientLight * 100.0F) + "%";
+        rebuild();
+    }
+
+    private void choosePng() {
+        this.minecraft.gui.setScreen(new CanvasImagePickerScreen(this, selectedPath -> {
+            try {
+                checkpoint();
+                project.canvasImage = ProjectManager.importCanvasImage(selectedPath);
+                project.renderedImage = "";
+                ProjectManager.save(project);
+                status = "PNG linked to project";
+            } catch (IOException exception) {
+                CraftShop.LOGGER.error("Could not import project PNG", exception);
+                status = "PNG import failed: " + exception.getMessage();
+            }
+            rebuild();
+        }));
+    }
+
+    private void open2DEditor() {
+        try {
+            Path image = ProjectManager.resolveCanvasImage(project);
+            if (image == null) {
+                this.minecraft.gui.setScreen(new CanvasImagePickerScreen(this, selectedPath -> {
+                    try {
+                        checkpoint();
+                        project.canvasImage = ProjectManager.importCanvasImage(selectedPath);
+                        project.renderedImage = "";
+                        ProjectManager.save(project);
+                        openCanvasEditor(ProjectManager.resolveCanvasImage(project));
+                    } catch (IOException exception) {
+                        CraftShop.LOGGER.error("Could not prepare PNG for the 2D editor", exception);
+                        status = "Could not open selected PNG";
+                        rebuild();
+                    }
+                }));
+                return;
+            }
+            openCanvasEditor(image);
+        } catch (IOException exception) {
+            CraftShop.LOGGER.error("Could not resolve project PNG", exception);
+            status = "Could not load project PNG";
+            rebuild();
+        }
+    }
+
+    private void openCanvasEditor(Path image) {
+        this.minecraft.gui.setScreen(new Canvas2DScreen(this, image, exportedImage -> {
+            try {
+                project.canvasImage = ProjectManager.importCanvasImage(exportedImage);
+                project.renderedImage = "";
+                ProjectManager.save(project);
+                GalleryTextureCache.invalidate(image);
+                status = "Edited PNG linked to project";
+            } catch (IOException exception) {
+                CraftShop.LOGGER.error("Could not update project PNG after 2D export", exception);
+                status = "Could not update project PNG";
+            }
+        }));
+    }
+
+    private void openTimeline() {
+        SceneProject.SceneObject selected = selectedObject();
+        project.selectedObjectId = selected == null ? "" : selected.id;
+        this.minecraft.gui.setScreen(new SceneTimelineScreen(this, project));
+    }
+
+    private void previewScene() {
+        if (projectNameField != null) project.name = projectNameField.getValue();
+        validateProject();
+        status = "3D viewport open • click objects to select, drag to move, right-drag to orbit";
+        this.minecraft.gui.setScreen(new SceneRenderScreen(project, this));
+    }
+
+    private void renderPng() {
+        if (projectNameField != null) project.name = projectNameField.getValue();
+        try {
+            ProjectManager.save(project);
+        } catch (IOException exception) {
+            CraftShop.LOGGER.error("Could not save project before rendering", exception);
+            status = "Save before render failed";
+            rebuild();
+            return;
+        }
+        SceneExporter.beginExport(this.minecraft, this, project, message -> {
+            status = message;
+            rebuild();
+        });
     }
 
     private void openProjectBrowser() {
         this.minecraft.gui.setScreen(new ProjectBrowserScreen(this, loaded -> {
             checkpoint();
+            SceneAssetRenderer.clear();
             project = loaded;
             selectedObjectId = null;
-            validateSelection();
+            scenePage = 0;
+            validateProject();
             if (projectNameField != null) projectNameField.setValue(project.name);
             status = "Project loaded";
-            rebuildStudioWidgets();
+            rebuild();
         }));
     }
 
@@ -502,186 +746,22 @@ public final class StudioScreen extends Screen {
         try {
             ProjectManager.save(project);
             status = "Project saved";
-        } catch (java.io.IOException exception) {
+        } catch (IOException exception) {
             CraftShop.LOGGER.error("Could not save CraftShop project", exception);
-            status = "Save failed";
+            status = "Save failed: " + exception.getMessage();
         }
+        rebuild();
     }
 
     private void newProject() {
         checkpoint();
+        SceneAssetRenderer.clear();
         project = new SceneProject();
         selectedObjectId = null;
-        activeTool = "Select";
-        status = "New scene created";
+        scenePage = 0;
         if (projectNameField != null) projectNameField.setValue(project.name);
-        rebuildStudioWidgets();
-    }
-
-    @Override
-    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        double mouseX = event.x();
-        double mouseY = event.y();
-        int button = event.button();
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT
-                && mouseX >= viewportLeft() && mouseX <= viewportRight()
-                && mouseY >= 66 && mouseY <= timelineTop() - 8) {
-            if ("Select".equals(activeTool)) {
-                selectAt(mouseX, mouseY);
-                return true;
-            }
-            if ("Move".equals(activeTool) || "Rotate".equals(activeTool) || "Scale".equals(activeTool)
-                    || "Orbit".equals(activeTool) || "Pan".equals(activeTool) || "Zoom".equals(activeTool)) {
-                if (("Move".equals(activeTool) || "Rotate".equals(activeTool) || "Scale".equals(activeTool))
-                        && selectedObject() == null) {
-                    status = "Select an object first";
-                    return true;
-                }
-                checkpoint();
-                draggingViewport = true;
-                dragChanged = false;
-                return true;
-            }
-        }
-        return super.mouseClicked(event, doubleClick);
-    }
-
-    private void selectAt(double mouseX, double mouseY) {
-        SceneProject.SceneObject nearest = null;
-        double nearestDistance = 16.0 * 16.0;
-        for (SceneProject.SceneObject object : project.objects) {
-            int[] point = projectToScreen(object.transform.x, object.transform.y, object.transform.z);
-            double dx = point[0] - mouseX;
-            double dy = point[1] - mouseY;
-            double distance = dx * dx + dy * dy;
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                nearest = object;
-            }
-        }
-        selectedObjectId = nearest == null ? null : nearest.id;
-        status = nearest == null ? "Selection cleared" : "Selected " + nearest.name;
-        rebuildStudioWidgets();
-    }
-
-    @Override
-    public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
-        int button = event.button();
-        if (!draggingViewport || button != GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-            return super.mouseDragged(event, dragX, dragY);
-        }
-
-        SceneProject.SceneObject selected = selectedObject();
-        float zoom = Math.max(0.2F, project.camera.zoom);
-        switch (activeTool) {
-            case "Move" -> {
-                selected.transform.x += (float) (dragX / (30.0 * zoom));
-                selected.transform.y -= (float) (dragY / (30.0 * zoom));
-            }
-            case "Rotate" -> {
-                selected.transform.rotationY += (float) dragX;
-                selected.transform.rotationX += (float) dragY;
-            }
-            case "Scale" -> {
-                float factor = (float) Math.exp(dragX * 0.01);
-                selected.transform.scaleX = clamp(selected.transform.scaleX * factor, 0.05F, 20.0F);
-                selected.transform.scaleY = clamp(selected.transform.scaleY * factor, 0.05F, 20.0F);
-                selected.transform.scaleZ = clamp(selected.transform.scaleZ * factor, 0.05F, 20.0F);
-            }
-            case "Orbit" -> {
-                project.camera.yaw += (float) (dragX * 0.5);
-                project.camera.pitch = clamp(project.camera.pitch + (float) (dragY * 0.5), -89.0F, 89.0F);
-            }
-            case "Pan" -> {
-                project.camera.targetX -= (float) (dragX / (30.0 * zoom));
-                project.camera.targetY += (float) (dragY / (30.0 * zoom));
-            }
-            case "Zoom" -> project.camera.zoom = clamp(
-                    (float) (project.camera.zoom * Math.exp(-dragY * 0.01)), 0.2F, 4.0F
-            );
-            default -> { }
-        }
-        dragChanged = true;
-        status = activeTool + " • " + (selected == null ? "Camera" : selected.name);
-        return true;
-    }
-
-    @Override
-    public boolean mouseReleased(MouseButtonEvent event) {
-        int button = event.button();
-        if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT && draggingViewport) {
-            draggingViewport = false;
-            if (!dragChanged && !undoHistory.isEmpty()) {
-                undoHistory.pop();
-            }
-            dragChanged = false;
-            return true;
-        }
-        return super.mouseReleased(event);
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (mouseX >= viewportLeft() && mouseX <= viewportRight()
-                && mouseY >= 66 && mouseY <= timelineTop() - 8) {
-            checkpoint();
-            float factor = (float) Math.pow(1.12, verticalAmount);
-            project.camera.zoom = clamp(project.camera.zoom * factor, 0.2F, 4.0F);
-            status = "Viewport zoom: " + format(project.camera.zoom) + "x";
-            return true;
-        }
-        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
-    }
-
-    @Override
-    public boolean keyPressed(KeyEvent event) {
-        int keyCode = event.input();
-        if (projectNameField != null && projectNameField.isFocused()) {
-            return super.keyPressed(event);
-        }
-
-        boolean control = event.hasControlDown();
-        if (control && keyCode == 'z') {
-            undo();
-            return true;
-        }
-        if (control && keyCode == 'y') {
-            redo();
-            return true;
-        }
-        if (control && keyCode == 'd') {
-            duplicateSelected();
-            return true;
-        }
-        if (keyCode == 'g') {
-            activeTool = "Move";
-            status = "Move tool selected";
-            rebuildStudioWidgets();
-            return true;
-        }
-        if (keyCode == 'r') {
-            activeTool = "Rotate";
-            status = "Rotate tool selected";
-            rebuildStudioWidgets();
-            return true;
-        }
-        if (keyCode == 's') {
-            activeTool = "Scale";
-            status = "Scale tool selected";
-            rebuildStudioWidgets();
-            return true;
-        }
-        if (keyCode == 127 || keyCode == 8) {
-            deleteSelected();
-            return true;
-        }
-        if (event.isEscape() && !"Select".equals(activeTool)) {
-            activeTool = "Select";
-            status = "Select tool restored";
-            rebuildStudioWidgets();
-            return true;
-        }
-        return super.keyPressed(event);
+        status = "New scene created";
+        rebuild();
     }
 
     private static float clamp(float value, float minimum, float maximum) {
@@ -693,7 +773,33 @@ public final class StudioScreen extends Screen {
     }
 
     @Override
+    public boolean keyPressed(KeyEvent event) {
+        if (projectNameField != null && projectNameField.isFocused()) {
+            return super.keyPressed(event);
+        }
+        int key = event.input();
+        if (event.hasControlDown() && key == 'z') {
+            undo();
+            return true;
+        }
+        if (event.hasControlDown() && key == 'y') {
+            redo();
+            return true;
+        }
+        if (event.hasControlDown() && key == 'd') {
+            duplicateSelected();
+            return true;
+        }
+        if (key == 127 || key == 8) {
+            deleteSelected();
+            return true;
+        }
+        return super.keyPressed(event);
+    }
+
+    @Override
     public void onClose() {
+        SceneAssetRenderer.clear();
         returnToParent();
     }
 

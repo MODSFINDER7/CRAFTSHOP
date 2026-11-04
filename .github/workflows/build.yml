@@ -2,7 +2,7 @@ name: CraftShop Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, studio-v2-redesign]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -26,10 +26,10 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '9.5.0'
+          gradle-version: '9.5.1'
 
-      - name: Build mod and sources
-        run: gradle --no-daemon clean build
+      - name: Run unit tests and build mod
+        run: gradle --no-daemon clean test build
 
       - name: Upload build artifacts
         if: success()

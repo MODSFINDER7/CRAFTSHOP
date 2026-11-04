@@ -6,8 +6,11 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 public final class CanvasImagePickerScreen extends Screen {
     private static final int PAGE_SIZE = 8;
@@ -25,7 +28,23 @@ public final class CanvasImagePickerScreen extends Screen {
 
     @Override
     protected void init() {
-        images = ScreenshotManager.getScreenshots();
+        Path importDirectory = net.minecraft.client.Minecraft.getInstance().gameDirectory.toPath()
+                .resolve("craftshop").resolve("canvas").resolve("imports");
+        Path[] importedPngs;
+        try {
+            Files.createDirectories(importDirectory);
+            try (Stream<Path> files = Files.list(importDirectory)) {
+                importedPngs = files.filter(path -> Files.isRegularFile(path)
+                                && path.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".png"))
+                        .sorted().toArray(Path[]::new);
+            }
+        } catch (java.io.IOException exception) {
+            CraftShop.LOGGER.warn("Could not scan CraftShop PNG import folder", exception);
+            importedPngs = new Path[0];
+        }
+        Path[] screenshots = ScreenshotManager.getScreenshots();
+        images = Stream.concat(Arrays.stream(screenshots), Arrays.stream(importedPngs))
+                .distinct().toArray(Path[]::new);
         int maxPage = Math.max(0, (images.length - 1) / PAGE_SIZE);
         page = Math.max(0, Math.min(page, maxPage));
 
@@ -40,8 +59,8 @@ public final class CanvasImagePickerScreen extends Screen {
             addRenderableWidget(Button.builder(
                     Component.literal(path.getFileName().toString()),
                     button -> {
-                        selection.accept(path);
                         this.minecraft.gui.setScreen(parent);
+                        selection.accept(path);
                     }
             ).bounds(left + 54, y + 5, Math.max(180, this.width - 110), 28).build());
         }
@@ -82,7 +101,7 @@ public final class CanvasImagePickerScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         graphics.text(this.font, "IMPORT IMAGE", 24, 20, 0xFFFFFFFF, true);
-        graphics.text(this.font, "Choose a screenshot from your CraftShop gallery", 24, 40, 0xFF9BAAB9, false);
+        graphics.text(this.font, "Choose a gallery screenshot or PNG from craftshop/canvas/imports", 24, 40, 0xFF9BAAB9, false);
 
         for (int slot = 0; slot < PAGE_SIZE; slot++) {
             int index = page * PAGE_SIZE + slot;

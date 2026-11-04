@@ -29,17 +29,19 @@ public final class SceneAssetRenderer {
 
         Entity preview = PREVIEWS.get(object.id);
         boolean created = false;
-        if ("minecraft_block".equals(object.kind)) {
+        if ("minecraft_block".equals(object.kind) || "mesh_cube".equals(object.kind)) {
             Block block = BuiltInRegistries.BLOCK.getValue(id);
             if (block == null) return;
             if (!(preview instanceof Display.BlockDisplay)) {
-                preview = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace("block_display")).create(minecraft.level, EntitySpawnReason.LOAD);
-                if (!(preview instanceof Display.BlockDisplay display)) return;
-                display.setBlockState(block.defaultBlockState());
-                PREVIEWS.put(object.id, display);
-                preview = display;
+                preview = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace("block_display"))
+                        .create(minecraft.level, EntitySpawnReason.LOAD);
+                if (!(preview instanceof Display.BlockDisplay blockDisplay)) return;
+                PREVIEWS.put(object.id, blockDisplay);
+                preview = blockDisplay;
                 created = true;
             }
+            ((Display.BlockDisplay) preview).setBlockState(
+                    SceneWorldRenderer.applyBlockProperties(block.defaultBlockState(), object.blockProperties));
         } else if ("minecraft_entity".equals(object.kind)) {
             EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(id);
             if (type == null || id.getPath().equals("player")) return;
@@ -56,18 +58,19 @@ public final class SceneAssetRenderer {
         preview.setNoGravity(true);
         if (created) preview.tick();
         preview.setPos(0.0, 0.0, 0.0);
-        preview.setYRot(object.transform.rotationY);
-        preview.setXRot(object.transform.rotationX);
+        preview.setYRot(0.0F);
+        preview.setXRot(0.0F);
         var state = minecraft.getEntityRenderDispatcher().extractEntity(
                 preview, minecraft.getDeltaTracker().getGameTimeDeltaPartialTick(false));
-        float scale = Math.max(0.25F, Math.min(2.0F,
+        float scale = Math.max(0.05F, Math.min(4.0F,
                 (object.transform.scaleX + object.transform.scaleY + object.transform.scaleZ) / 3.0F));
         Quaternionf rotation = new Quaternionf().rotationXYZ(
                 (float) Math.toRadians(object.transform.rotationX),
                 (float) Math.toRadians(object.transform.rotationY),
                 (float) Math.toRadians(object.transform.rotationZ));
-        graphics.entity(state, size * scale, new Vector3f(0.0F, 0.0F, 0.0F),
-                rotation, null, x - size, y - size, x + size, y + size);
+        int renderSize = Math.max(4, Math.round(size * scale));
+        graphics.entity(state, renderSize, new Vector3f(0.0F, 0.0F, 0.0F),
+                rotation, null, x - renderSize, y - renderSize, x + renderSize, y + renderSize);
     }
 
     public static void forget(String objectId) {

@@ -27,6 +27,7 @@ public final class CraftShopClient implements ClientModInitializer {
         ScreenshotManager.initialize();
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            SceneExporter.tick(client);
             while (CAPTURE_KEY.consumeClick()) {
                 if (client.player != null && client.level != null && client.gui.screen() == null) {
                     ScreenshotManager.capture(client);
