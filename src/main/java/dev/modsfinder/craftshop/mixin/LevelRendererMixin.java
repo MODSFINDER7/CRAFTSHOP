@@ -7,11 +7,15 @@ import dev.modsfinder.craftshop.LiveWorldRenderer;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.state.level.LevelRenderState;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fc;
 import org.joml.Vector4f;
+
+import java.util.ArrayList;
+import java.util.List;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
@@ -43,11 +47,15 @@ public abstract class LevelRendererMixin {
         if (craftshop$secondaryRender || !LiveWorldRenderer.isActive()) return;
 
         if (LiveWorldRenderer.beginFrame() == null) return;
+        LevelRenderer renderer = (LevelRenderer) (Object) this;
         LevelRenderState primaryState = levelRenderState;
+        List<SectionRenderDispatcher.RenderSection> primaryVisibleSections =
+                new ArrayList<>(renderer.visibleSections());
+        List<SectionRenderDispatcher.RenderSection> primaryNearbyVisibleSections =
+                new ArrayList<>(renderer.nearbyVisibleSections());
         boolean rendered = false;
         craftshop$secondaryRender = true;
         try {
-            LevelRenderer renderer = (LevelRenderer) (Object) this;
             CameraRenderState viewportCamera = LiveWorldRenderer.prepareSecondary(
                     Minecraft.getInstance(), renderer, deltaTracker, cameraState
             );
@@ -77,6 +85,10 @@ public abstract class LevelRendererMixin {
             LiveWorldRenderer.reportRenderFailure(throwable);
         } finally {
             levelRenderState = primaryState;
+            renderer.clearVisibleSections();
+            renderer.visibleSections().addAll(primaryVisibleSections);
+            renderer.nearbyVisibleSections().clear();
+            renderer.nearbyVisibleSections().addAll(primaryNearbyVisibleSections);
             craftshop$secondaryRender = false;
             if (rendered) LiveWorldRenderer.finishFrame();
             else LiveWorldRenderer.cancelFrame();
