@@ -4,6 +4,7 @@
   "package": "dev.modsfinder.craftshop.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
+    "CameraAccessor",
     "LevelRendererMixin",
     "GameRendererMixin"
   ],
