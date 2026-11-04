@@ -16,4 +16,7 @@ public interface CameraAccessor {
 
     @Accessor("cullFrustum")
     void craftshop$setCullFrustum(Frustum frustum);
+
+    @Accessor("detached")
+    void craftshop$setDetached(boolean detached);
 }
