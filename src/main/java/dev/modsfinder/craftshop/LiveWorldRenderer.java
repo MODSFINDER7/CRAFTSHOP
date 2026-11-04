@@ -57,11 +57,17 @@ public final class LiveWorldRenderer {
         frameReady = false;
         overrideTarget = null;
         camera = null;
+        if (target != null) {
+            target.destroyBuffers();
+            target = null;
+        }
         secondaryState = null;
         secondaryExtractor = null;
         secondaryCamera = null;
         secondaryLevel = null;
         secondaryLevelRenderer = null;
+        viewportWidth = 0;
+        viewportHeight = 0;
     }
 
     public static boolean isActive() {
@@ -123,10 +129,11 @@ public final class LiveWorldRenderer {
         secondaryCamera.setLevel(minecraft.level);
         secondaryCamera.setEntity(minecraft.player);
         secondaryCamera.update(deltaTracker);
+        secondaryCamera.tick();
+
         CameraAccessor accessor = (CameraAccessor) secondaryCamera;
         accessor.craftshop$setRotation(camera.yaw, camera.pitch);
         accessor.craftshop$setPosition(camera.x, camera.y, camera.z);
-        secondaryCamera.tick();
 
         CameraRenderState cameraState = secondaryState.cameraRenderState;
         secondaryCamera.extractRenderState(
