@@ -80,7 +80,7 @@ public final class SceneRenderScreen extends Screen {
         double scale = Math.min(2.0D, 1024.0D / Math.max(1, Math.max(bounds.width(), bounds.height())));
         int renderWidth = Math.max(64, (int) Math.round(bounds.width() * scale));
         int renderHeight = Math.max(64, (int) Math.round(bounds.height() * scale));
-        sceneFrame = SceneWorldRenderer.render(project, renderWidth, renderHeight, minecraft);
+        sceneFrame = SceneWorldRenderer.render(project, renderWidth, renderHeight, minecraft, imagePath == null);
     }
 
     private List<ProjectedObject> projectObjects(CanvasBounds bounds) {
