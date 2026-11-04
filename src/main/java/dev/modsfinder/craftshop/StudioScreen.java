@@ -396,6 +396,11 @@ public final class StudioScreen extends Screen {
                     object.kind = "minecraft_block";
                     object.assetId = blockId.toString();
                     object.name = blockId.toString();
+                    for (net.minecraft.world.level.block.state.properties.Property<?> property
+                            : state.getProperties()) {
+                        object.blockProperties.put(property.getName(),
+                                propertyValueName(state, property));
+                    }
                     object.transform.x = x;
                     object.transform.y = y;
                     object.transform.z = z;
@@ -415,6 +420,12 @@ public final class StudioScreen extends Screen {
             status = "Imported " + imported + " nearby blocks (block states use default variants)";
         }
         rebuild();
+    }
+
+    private static <T extends Comparable<T>> String propertyValueName(
+            net.minecraft.world.level.block.state.BlockState state,
+            net.minecraft.world.level.block.state.properties.Property<T> property) {
+        return property.getName(state.getValue(property));
     }
 
     private void addCube() {
