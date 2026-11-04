@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Comparator;
 import java.util.WeakHashMap;
 import java.awt.image.BufferedImage;
 import java.io.InputStream;
@@ -52,7 +53,15 @@ public final class SceneWorldRenderer {
         Raster raster = new Raster(w, h, pixels, depth, objectIds, basis, project);
 
         SceneWorld world = SceneWorld.from(project);
-        for (SceneProject.SceneObject object : world.renderObjects(camera)) {
+        // Render far-to-near: opaque fragments still resolve through the depth
+        // buffer, while alpha-tested/translucent model texels blend in the
+        // correct order instead of depending on scene-list order.
+        List<SceneProject.SceneObject> renderOrder = new ArrayList<>(world.renderObjects(camera));
+        renderOrder.sort(Comparator.comparingDouble((SceneProject.SceneObject object) -> {
+            if (object == null || object.transform == null) return Double.NEGATIVE_INFINITY;
+            return basis.transform(new Vec3(object.transform.x, object.transform.y, object.transform.z)).z;
+        }).reversed());
+        for (SceneProject.SceneObject object : renderOrder) {
                 if (object == null || !object.visible || object.transform == null) continue;
                 int startX = w, startY = h, endX = -1, endY = -1;
                 boolean renderedModel = false;
@@ -544,10 +553,25 @@ public final class SceneWorldRenderer {
             }
         }
 
+        private float faceBrightness(Vec3 a, Vec3 b, Vec3 c) {
+            double abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+            double acx = c.x - a.x, acy = c.y - a.y, acz = c.z - a.z;
+            double nx = aby * acz - abz * acy;
+            double ny = abz * acx - abx * acz;
+            double nz = abx * acy - aby * acx;
+            double length = Math.sqrt(nx * nx + ny * ny + nz * nz);
+            if (length < 1.0E-9D) return 0.82F;
+            double direct = Math.max(0.0D,
+                    (nx * lightX + ny * lightY + nz * lightZ) / length);
+            return (float) (ambient + (1.0D - ambient) * direct);
+        }
+
         void texturedQuad(Vec3 a, Vec3 b, Vec3 c, Vec3 d, TextureAtlasSprite sprite,
                           BufferedImage texture, float[][] uv, int face,
                           int baseColor, String objectId) {
-            float brightness = faceBrightness(face);
+            // Derive the normal after object rotation so lighting follows the
+            // transformed model rather than the block's original facing.
+            float brightness = faceBrightness(a, b, c);
             if (sprite == null || texture == null) {
                 quad(a, b, c, d, shadeColor(baseColor, face), objectId);
                 return;
