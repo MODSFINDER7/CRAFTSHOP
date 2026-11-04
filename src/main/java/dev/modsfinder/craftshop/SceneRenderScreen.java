@@ -150,6 +150,10 @@ public final class SceneRenderScreen extends Screen {
 
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
+        // The live viewport deliberately leaves the framebuffer untouched.
+        // GameRenderer has already rendered the active ClientLevel through the
+        // vanilla LevelRenderer before the screen GUI is extracted.
+        if (imagePath == null && parent != null) return;
         super.extractBackground(graphics, mouseX, mouseY, delta);
         graphics.fill(0, 0, width, height, imagePath == null ? 0xFF101820 : 0xFFFFFFFF);
     }
@@ -160,6 +164,23 @@ public final class SceneRenderScreen extends Screen {
         if (!error.isBlank()) {
             graphics.centeredText(font, Component.literal("CraftShop render error: " + error),
                     width / 2, height / 2, 0xFFFF3333);
+            return;
+        }
+
+        // Native live-world mode: do not approximate Minecraft's world with
+        // sampled blocks or the CPU scene rasterizer. The actual level has
+        // already been drawn by GameRenderer/LevelRenderer behind this GUI.
+        if (imagePath == null && parent != null) {
+            boolean inWorld = minecraft != null && minecraft.level != null && minecraft.player != null;
+            graphics.fill(0, 0, width, 34, 0xA8101820);
+            graphics.fill(0, height - 34, width, height, 0xA8101820);
+            graphics.text(font, "CRAFTSHOP  /  NATIVE WORLD VIEW", 12, 10, 0xFF55DDEE, true);
+            graphics.text(font, inWorld
+                    ? "VANILLA LEVELRENDERER  •  LIVE CHUNKS  •  ENTITIES  •  BLOCK ENTITIES  •  WORLD EFFECTS"
+                    : "JOIN A WORLD TO DISPLAY THE NATIVE MINECRAFT RENDERER",
+                    12, 21, inWorld ? 0xFFE7F3FC : 0xFFFFC66D, false);
+            graphics.text(font, "RIGHT DRAG: LOOK  •  ESC: RETURN TO CRAFTSHOP",
+                    12, height - 21, 0xFFFFFFFF, false);
             return;
         }
         CanvasBounds bounds;
@@ -277,6 +298,15 @@ public final class SceneRenderScreen extends Screen {
     }
 
     private void rotateCamera(float yaw, float pitch) {
+        if (imagePath == null && parent != null && minecraft != null && minecraft.player != null) {
+            // The live viewport uses Minecraft's real camera entity. Updating
+            // its view angles keeps the native world, entities and effects in
+            // the same renderer and avoids a second, divergent camera model.
+            minecraft.player.setYRot(minecraft.player.getYRot() + yaw);
+            minecraft.player.setXRot(Math.max(-89.0F,
+                    Math.min(89.0F, minecraft.player.getXRot() + pitch)));
+            return;
+        }
         if (project.camera == null) project.camera = new SceneProject.Camera();
         project.camera.yaw += yaw;
         project.camera.pitch = Math.max(-89.0F, Math.min(89.0F, project.camera.pitch + pitch));
@@ -285,6 +315,7 @@ public final class SceneRenderScreen extends Screen {
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        if (imagePath == null && parent != null) return true;
         if (event.button() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !isReady()) {
             return super.mouseClicked(event, doubleClick);
         }
