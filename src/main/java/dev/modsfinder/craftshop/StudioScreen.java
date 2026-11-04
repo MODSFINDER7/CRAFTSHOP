@@ -77,7 +77,7 @@ public final class StudioScreen extends Screen {
 
         addButton("PNG", 151, top, 42, 20, this::choosePng);
         addButton("Render", 197, top, 54, 20, this::renderPng);
-        addButton("Preview", 255, top, 54, 20, this::previewScene);
+        addButton("Viewport", 255, top, 54, 20, this::previewScene);
 
         int nameX = 315;
         int nameWidth = Math.max(72, this.width - 457);
@@ -688,26 +688,9 @@ public final class StudioScreen extends Screen {
 
     private void previewScene() {
         if (projectNameField != null) project.name = projectNameField.getValue();
-        try {
-            Path image = ProjectManager.resolveCanvasImage(project);
-            if (image == null) {
-                status = "Choose a PNG before previewing";
-                rebuild();
-                return;
-            }
-            SceneRenderScreen preview = new SceneRenderScreen(project, image, this);
-            if (!preview.isReady()) {
-                status = "Selected PNG could not be prepared for preview";
-                rebuild();
-                return;
-            }
-            status = "Preview open • drag to look, WASD to move, scroll to zoom";
-            this.minecraft.gui.setScreen(preview);
-        } catch (IOException exception) {
-            CraftShop.LOGGER.error("Could not prepare CraftShop scene preview", exception);
-            status = "Preview setup failed: " + exception.getMessage();
-            rebuild();
-        }
+        validateProject();
+        status = "3D viewport open • click objects to select, drag to move, right-drag to orbit";
+        this.minecraft.gui.setScreen(new SceneRenderScreen(project, this));
     }
 
     private void renderPng() {
