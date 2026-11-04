@@ -28,22 +28,29 @@ public final class SceneRenderScreen extends Screen {
         this(project, imagePath, null);
     }
 
+    public SceneRenderScreen(SceneProject project, Screen parent) {
+        this(project, null, parent);
+    }
+
     public SceneRenderScreen(SceneProject project, Path imagePath, Screen parent) {
-        super(Component.literal(parent == null ? "CraftShop PNG Render" : "CraftShop Scene Preview"));
+        super(Component.literal(imagePath == null ? "CraftShop 3D Viewport"
+                : parent == null ? "CraftShop PNG Render" : "CraftShop Scene Preview"));
         this.project = project;
         this.imagePath = imagePath;
         this.parent = parent;
-        try {
-            var image = javax.imageio.ImageIO.read(imagePath.toFile());
-            if (image == null) throw new java.io.IOException("PNG could not be decoded");
-            imageWidth = image.getWidth();
-            imageHeight = image.getHeight();
-            image.flush();
-            if (GalleryTextureCache.get(imagePath) == null) {
-                throw new java.io.IOException("PNG texture could not be loaded by Minecraft");
+        if (imagePath != null) {
+            try {
+                var image = javax.imageio.ImageIO.read(imagePath.toFile());
+                if (image == null) throw new java.io.IOException("PNG could not be decoded");
+                imageWidth = image.getWidth();
+                imageHeight = image.getHeight();
+                image.flush();
+                if (GalleryTextureCache.get(imagePath) == null) {
+                    throw new java.io.IOException("PNG texture could not be loaded by Minecraft");
+                }
+            } catch (Exception exception) {
+                error = exception.getMessage() == null ? "PNG could not be read" : exception.getMessage();
             }
-        } catch (Exception exception) {
-            error = exception.getMessage() == null ? "PNG could not be read" : exception.getMessage();
         }
     }
 
@@ -125,7 +132,7 @@ public final class SceneRenderScreen extends Screen {
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractBackground(graphics, mouseX, mouseY, delta);
-        graphics.fill(0, 0, width, height, 0xFFFFFFFF);
+        graphics.fill(0, 0, width, height, imagePath == null ? 0xFF101820 : 0xFFFFFFFF);
     }
 
     @Override
@@ -136,15 +143,31 @@ public final class SceneRenderScreen extends Screen {
                     width / 2, height / 2, 0xFFFF3333);
             return;
         }
-        GalleryTextureCache.TextureEntry texture = GalleryTextureCache.get(imagePath);
-        if (texture == null) {
-            graphics.centeredText(font, Component.literal("CraftShop could not load the selected PNG"),
-                    width / 2, height / 2, 0xFFFF3333);
-            return;
+        CanvasBounds bounds;
+        if (imagePath == null) {
+            bounds = new CanvasBounds(12, 30, Math.max(1, width - 24), Math.max(1, height - 66));
+            graphics.fill(bounds.x(), bounds.y(), bounds.x() + bounds.width(),
+                    bounds.y() + bounds.height(), 0xFF17232E);
+            for (int x = bounds.x(); x < bounds.x() + bounds.width(); x += 32) {
+                graphics.fill(x, bounds.y(), x + 1, bounds.y() + bounds.height(), 0xFF22313D);
+            }
+            for (int y = bounds.y(); y < bounds.y() + bounds.height(); y += 32) {
+                graphics.fill(bounds.x(), y, bounds.x() + bounds.width(), y + 1, 0xFF22313D);
+            }
+            graphics.outline(bounds.x(), bounds.y(), bounds.width(), bounds.height(), 0xFF42596A);
+            graphics.text(font, "CRAFTSHOP 3D VIEWPORT  •  " + project.objects.size() + " OBJECTS",
+                    18, 16, 0xFF55DDEE, true);
+        } else {
+            GalleryTextureCache.TextureEntry texture = GalleryTextureCache.get(imagePath);
+            if (texture == null) {
+                graphics.centeredText(font, Component.literal("CraftShop could not load the selected PNG"),
+                        width / 2, height / 2, 0xFFFF3333);
+                return;
+            }
+            bounds = canvasBounds(width, height, imageWidth, imageHeight);
+            graphics.blit(RenderPipelines.GUI_TEXTURED, texture.id(), bounds.x(), bounds.y(), 0.0F, 0.0F,
+                    bounds.width(), bounds.height(), texture.width(), texture.height());
         }
-        CanvasBounds bounds = canvasBounds(width, height, imageWidth, imageHeight);
-        graphics.blit(RenderPipelines.GUI_TEXTURED, texture.id(), bounds.x(), bounds.y(), 0.0F, 0.0F,
-                bounds.width(), bounds.height(), texture.width(), texture.height());
 
         if (sceneFrame == null) rebuildSceneFrame(bounds);
         SceneWorldRenderer.draw(graphics, sceneFrame, bounds.x(), bounds.y(), bounds.width(), bounds.height());
