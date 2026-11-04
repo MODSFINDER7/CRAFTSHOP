@@ -380,10 +380,20 @@ public final class StudioScreen extends Screen {
         checkpoint();
         net.minecraft.core.BlockPos origin = minecraft.player.blockPosition();
         int imported = 0;
-        for (int y = -2; y <= 3; y++) {
-            for (int x = -4; x <= 4; x++) {
-                for (int z = -4; z <= 4; z++) {
+        int skippedUnloaded = 0;
+
+        // Capture a compact 16x16x16 region centred around the player. This
+        // produces a portable scene snapshot: later edits in the live world do
+        // not mutate the imported project.
+        for (int y = -8; y < 8; y++) {
+            for (int x = -8; x < 8; x++) {
+                for (int z = -8; z < 8; z++) {
                     net.minecraft.core.BlockPos position = origin.offset(x, y, z);
+                    if (!minecraft.level.hasChunkAt(position)) {
+                        skippedUnloaded++;
+                        continue;
+                    }
+
                     net.minecraft.world.level.block.state.BlockState state =
                             minecraft.level.getBlockState(position);
                     if (state.isAir()) continue;
@@ -417,7 +427,8 @@ public final class StudioScreen extends Screen {
             selectedObjectId = project.objects.get(project.objects.size() - 1).id;
             project.selectedObjectId = selectedObjectId;
             scenePage = Math.max(0, (project.objects.size() - 1) / visibleObjectRows());
-            status = "Imported " + imported + " nearby blocks with block-state properties";
+            status = "Imported " + imported + " blocks from 16³ snapshot"
+                    + (skippedUnloaded > 0 ? " • skipped " + skippedUnloaded + " unloaded positions" : "");
         }
         rebuild();
     }
