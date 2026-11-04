@@ -94,6 +94,25 @@ class ProjectManagerTest {
         assertNotNull(object.transform);
     }
 
+    @Test
+    void initializesMissingBlockStatePropertiesWithoutDiscardingSavedVariants() throws Exception {
+        SceneProject project = new SceneProject();
+        SceneProject.SceneObject legacy = object("legacy");
+        legacy.blockProperties = null;
+        SceneProject.SceneObject imported = object("imported");
+        imported.blockProperties.put("facing", "north");
+        imported.blockProperties.put("waterlogged", "true");
+        project.objects.add(legacy);
+        project.objects.add(imported);
+
+        ProjectManager.normalizeProject(project);
+
+        assertNotNull(legacy.blockProperties);
+        assertTrue(legacy.blockProperties.isEmpty());
+        assertEquals("north", imported.blockProperties.get("facing"));
+        assertEquals("true", imported.blockProperties.get("waterlogged"));
+    }
+
     private static SceneProject.SceneObject object(String id) {
         SceneProject.SceneObject object = new SceneProject.SceneObject();
         object.id = id;
