@@ -159,6 +159,7 @@ public final class ProjectManager {
             if (object.name == null || object.name.isBlank()) object.name = "Object";
             if (object.kind == null || object.kind.isBlank()) object.kind = "mesh_cube";
             if (object.assetId == null || object.assetId.isBlank()) object.assetId = "minecraft:stone";
+            if (object.blockProperties == null) object.blockProperties = new java.util.LinkedHashMap<>();
             if (object.transform == null) object.transform = new SceneProject.Transform();
             SceneProject.Transform t = object.transform;
             t.x = finite(t.x, 0.0F, -100000.0F, 100000.0F);
