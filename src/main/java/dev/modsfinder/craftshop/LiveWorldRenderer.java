@@ -30,6 +30,7 @@ public final class LiveWorldRenderer {
     private static Camera secondaryCamera;
     private static net.minecraft.client.multiplayer.ClientLevel secondaryLevel;
     private static LevelRenderer secondaryLevelRenderer;
+    private static boolean failureLogged;
 
     private LiveWorldRenderer() {}
 
@@ -39,7 +40,11 @@ public final class LiveWorldRenderer {
         camera = sceneCamera;
         viewportWidth = Math.max(64, width - 24);
         viewportHeight = Math.max(64, height - 66);
-        if (!active || camera == null) return;
+        if (!active || camera == null) {
+            releaseTarget();
+            resetSecondaryRenderer();
+            return;
+        }
 
         if (camera.x == 0.0F && camera.y == 2.0F && camera.z == 8.0F
                 && camera.yaw == 0.0F && camera.pitch == 12.0F) {
@@ -49,7 +54,37 @@ public final class LiveWorldRenderer {
             camera.yaw = minecraft.player.getYRot();
             camera.pitch = minecraft.player.getXRot();
         }
-        ensureTarget();
+        try {
+            ensureTarget();
+        } catch (Throwable throwable) {
+            active = false;
+            releaseTarget();
+            reportRenderFailure(throwable);
+        }
+    }
+
+    public static void reportRenderFailure(Throwable throwable) {
+        if (!failureLogged) {
+            failureLogged = true;
+            CraftShop.LOGGER.error("CraftShop independent world viewport disabled after a render failure", throwable);
+        }
+    }
+
+    private static void releaseTarget() {
+        if (target != null) {
+            target.destroyBuffers();
+            target = null;
+        }
+        overrideTarget = null;
+        frameReady = false;
+    }
+
+    private static void resetSecondaryRenderer() {
+        secondaryState = null;
+        secondaryExtractor = null;
+        secondaryCamera = null;
+        secondaryLevel = null;
+        secondaryLevelRenderer = null;
     }
 
     public static void end() {
@@ -57,15 +92,8 @@ public final class LiveWorldRenderer {
         frameReady = false;
         overrideTarget = null;
         camera = null;
-        if (target != null) {
-            target.destroyBuffers();
-            target = null;
-        }
-        secondaryState = null;
-        secondaryExtractor = null;
-        secondaryCamera = null;
-        secondaryLevel = null;
-        secondaryLevelRenderer = null;
+        releaseTarget();
+        resetSecondaryRenderer();
         viewportWidth = 0;
         viewportHeight = 0;
     }
@@ -84,15 +112,24 @@ public final class LiveWorldRenderer {
 
     public static RenderTarget beginFrame() {
         if (!isActive()) return null;
-        ensureTarget();
-        frameReady = false;
-        overrideTarget = target;
-        return target;
+        try {
+            ensureTarget();
+            frameReady = false;
+            overrideTarget = target;
+            return target;
+        } catch (Throwable throwable) {
+            cancelFrame();
+            reportRenderFailure(throwable);
+            active = false;
+            releaseTarget();
+            return null;
+        }
     }
 
     public static void finishFrame() {
-        frameReady = true;
+        frameReady = target != null;
         overrideTarget = null;
+        failureLogged = false;
     }
 
     public static void cancelFrame() {
@@ -105,6 +142,13 @@ public final class LiveWorldRenderer {
         int scale = Math.max(1, (int) Math.ceil(minecraft.getWindow().getGuiScale()));
         int width = Math.max(64, viewportWidth * scale);
         int height = Math.max(64, viewportHeight * scale);
+        long pixels = (long) width * height;
+        final long maxPixels = 4_194_304L;
+        if (pixels > maxPixels) {
+            double reduction = Math.sqrt((double) maxPixels / pixels);
+            width = Math.max(64, (int) Math.floor(width * reduction));
+            height = Math.max(64, (int) Math.floor(height * reduction));
+        }
         if (target != null && target.width == width && target.height == height) return;
         if (target != null) target.destroyBuffers();
         target = new TextureTarget("CraftShop independent world viewport",
