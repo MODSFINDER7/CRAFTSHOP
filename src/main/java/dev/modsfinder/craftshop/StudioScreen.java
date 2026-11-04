@@ -417,7 +417,7 @@ public final class StudioScreen extends Screen {
             selectedObjectId = project.objects.get(project.objects.size() - 1).id;
             project.selectedObjectId = selectedObjectId;
             scenePage = Math.max(0, (project.objects.size() - 1) / visibleObjectRows());
-            status = "Imported " + imported + " nearby blocks (block states use default variants)";
+            status = "Imported " + imported + " nearby blocks with block-state properties";
         }
         rebuild();
     }
