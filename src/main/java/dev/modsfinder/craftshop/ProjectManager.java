@@ -176,7 +176,8 @@ public final class ProjectManager {
                 && project.objects.stream().noneMatch(object -> project.selectedObjectId.equals(object.id))) {
             project.selectedObjectId = "";
         }
-        project.formatVersion = Math.max(1, project.formatVersion);
+        SceneTimeline.normalize(project);
+        project.formatVersion = Math.max(4, project.formatVersion);
     }
 
     private static float finite(float value, float fallback, float minimum, float maximum) {
