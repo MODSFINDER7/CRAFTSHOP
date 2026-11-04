@@ -23,9 +23,6 @@ public final class SceneRenderScreen extends Screen {
     private String error = "";
     private SceneWorldRenderer.Frame sceneFrame;
     private boolean draggingObject;
-    private int liveWorldRefreshTicks;
-    private int liveWorldBlockCount;
-    private int liveWorldUnloadedPositions;
 
     public SceneRenderScreen(SceneProject project, Path imagePath) {
         this(project, imagePath, null);
@@ -83,17 +80,7 @@ public final class SceneRenderScreen extends Screen {
         double scale = Math.min(2.0D, 1024.0D / Math.max(1, Math.max(bounds.width(), bounds.height())));
         int renderWidth = Math.max(64, (int) Math.round(bounds.width() * scale));
         int renderHeight = Math.max(64, (int) Math.round(bounds.height() * scale));
-        SceneProject renderProject = project;
-        if (imagePath == null && parent != null && minecraft != null && minecraft.level != null) {
-            LiveWorldScene.Snapshot snapshot = LiveWorldScene.capture(project, minecraft);
-            renderProject = snapshot.project();
-            liveWorldBlockCount = snapshot.capturedBlocks();
-            liveWorldUnloadedPositions = snapshot.unloadedPositions();
-        } else {
-            liveWorldBlockCount = 0;
-            liveWorldUnloadedPositions = 0;
-        }
-        sceneFrame = SceneWorldRenderer.render(renderProject, renderWidth, renderHeight, minecraft, imagePath == null);
+        sceneFrame = SceneWorldRenderer.render(project, renderWidth, renderHeight, minecraft, imagePath == null);
     }
 
     private List<ProjectedObject> projectObjects(CanvasBounds bounds) {
@@ -257,11 +244,6 @@ public final class SceneRenderScreen extends Screen {
     public void tick() {
         super.tick();
         if (parent == null || minecraft == null) return;
-
-        if (imagePath == null && ++liveWorldRefreshTicks >= 5) {
-            liveWorldRefreshTicks = 0;
-            sceneFrame = null;
-        }
 
         var options = minecraft.options;
         float side = (options.keyRight.isDown() ? 1.0F : 0.0F)
