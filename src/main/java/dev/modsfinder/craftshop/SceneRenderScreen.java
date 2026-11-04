@@ -173,7 +173,7 @@ public final class SceneRenderScreen extends Screen {
                     ? "OFF-SCREEN LEVEL RENDER  •  SEPARATE CAMERA  •  LIVE CHUNKS / ENTITIES / BLOCK ENTITIES"
                     : "JOIN A WORLD TO START THE INDEPENDENT WORLD VIEWPORT",
                     12, 21, inWorld ? 0xFFE7F3FC : 0xFFFFC66D, false);
-            graphics.text(font, "WASD: MOVE  •  SPACE/SHIFT: UP/DOWN  •  RIGHT DRAG: LOOK  •  WHEEL: ZOOM  •  ESC: BACK",
+            graphics.text(font, "WASD: MOVE  •  SPACE/SHIFT: UP/DOWN  •  RIGHT DRAG: LOOK  •  WHEEL: ZOOM  •  R: RESET VIEW  •  F: RESET ZOOM  •  ESC: BACK",
                     12, height - 21, 0xFFFFFFFF, false);
             return;
         }
@@ -361,8 +361,31 @@ public final class SceneRenderScreen extends Screen {
         return true;
     }
 
+    private void resetLiveCameraToPlayer() {
+        if (minecraft == null || minecraft.player == null) return;
+        if (project.camera == null) project.camera = new SceneProject.Camera();
+        SceneProject.Camera camera = project.camera;
+        camera.x = (float) minecraft.player.getX();
+        camera.y = (float) (minecraft.player.getY() + minecraft.player.getEyeHeight());
+        camera.z = (float) minecraft.player.getZ();
+        camera.yaw = minecraft.player.getYRot();
+        camera.pitch = minecraft.player.getXRot();
+        camera.zoom = 1.0F;
+    }
+
     @Override
     public boolean keyPressed(KeyEvent event) {
+        if (imagePath == null && parent != null) {
+            if (event.input() == GLFW.GLFW_KEY_R) {
+                resetLiveCameraToPlayer();
+                return true;
+            }
+            if (event.input() == GLFW.GLFW_KEY_F) {
+                if (project.camera == null) project.camera = new SceneProject.Camera();
+                project.camera.zoom = 1.0F;
+                return true;
+            }
+        }
         if (parent != null && event.hasControlDown() && event.input() == GLFW.GLFW_KEY_D) {
             SceneProject.SceneObject source = project.objects.stream()
                     .filter(object -> project.selectedObjectId.equals(object.id)).findFirst().orElse(null);
