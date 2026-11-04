@@ -1,18 +1,19 @@
 package dev.modsfinder.craftshop;
 
-import com.mojang.blaze3d.GpuFormat;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.FilterMode;
+import net.minecraft.client.Camera;
+import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.culling.Frustum;
+import net.minecraft.client.renderer.extract.LevelExtractor;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
-import net.minecraft.core.BlockPos;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.client.renderer.state.level.LevelRenderState;
 import org.joml.Matrix4f;
-import org.joml.Quaternionf;
 
 public final class LiveWorldRenderer {
     private static boolean active;
@@ -22,6 +23,12 @@ public final class LiveWorldRenderer {
     private static RenderTarget overrideTarget;
     private static int viewportWidth;
     private static int viewportHeight;
+
+    private static LevelRenderState secondaryState;
+    private static LevelExtractor secondaryExtractor;
+    private static Camera secondaryCamera;
+    private static net.minecraft.client.multiplayer.ClientLevel secondaryLevel;
+    private static LevelRenderer secondaryLevelRenderer;
 
     private LiveWorldRenderer() {}
 
@@ -49,6 +56,11 @@ public final class LiveWorldRenderer {
         frameReady = false;
         overrideTarget = null;
         camera = null;
+        secondaryState = null;
+        secondaryExtractor = null;
+        secondaryCamera = null;
+        secondaryLevel = null;
+        secondaryLevelRenderer = null;
     }
 
     public static boolean isActive() {
@@ -57,6 +69,10 @@ public final class LiveWorldRenderer {
 
     public static RenderTarget overrideTarget() {
         return overrideTarget;
+    }
+
+    public static LevelRenderState secondaryState() {
+        return secondaryState;
     }
 
     public static RenderTarget beginFrame() {
@@ -85,41 +101,56 @@ public final class LiveWorldRenderer {
         if (target != null && target.width == width && target.height == height) return;
         if (target != null) target.destroyBuffers();
         target = new TextureTarget("CraftShop independent world viewport",
-                width, height, true, GpuFormat.RGBA8_UNORM);
+                width, height, true, com.mojang.blaze3d.GpuFormat.RGBA8_UNORM);
     }
 
-    public static CameraRenderState createCameraState(CameraRenderState source) {
-        if (source == null || camera == null) return source;
+    public static CameraRenderState prepareSecondary(
+            Minecraft minecraft,
+            LevelRenderer levelRenderer,
+            DeltaTracker deltaTracker,
+            CameraRenderState source
+    ) {
+        if (!isActive() || minecraft.level == null || minecraft.player == null) return null;
+        if (secondaryState == null || secondaryLevel != minecraft.level || secondaryLevelRenderer != levelRenderer) {
+            secondaryState = new LevelRenderState();
+            secondaryExtractor = new LevelExtractor(minecraft, secondaryState, levelRenderer);
+            secondaryCamera = new Camera(minecraft);
+            secondaryLevel = minecraft.level;
+            secondaryLevelRenderer = levelRenderer;
+        }
 
-        CameraRenderState state = new CameraRenderState();
-        state.pos = new Vec3(camera.x, camera.y, camera.z);
-        state.blockPos = BlockPos.containing(camera.x, camera.y, camera.z);
-        state.xRot = camera.pitch;
-        state.yRot = camera.yaw;
-        state.initialized = source.initialized;
-        state.isPanoramicMode = false;
-        state.isFrustumCaptured = false;
-        state.smartCull = source.smartCull;
-        state.fogType = source.fogType;
-        state.fogData = source.fogData;
-        state.hudFov = source.hudFov;
-        state.depthFar = source.depthFar;
-        state.entityRenderState = source.entityRenderState;
+        secondaryCamera.setLevel(minecraft.level);
+        secondaryCamera.setEntity(minecraft.player);
+        secondaryCamera.update(deltaTracker);
+        CameraAccessor accessor = (CameraAccessor) secondaryCamera;
+        accessor.craftshop$setRotation(camera.yaw, camera.pitch);
+        accessor.craftshop$setPosition(camera.x, camera.y, camera.z);
+        secondaryCamera.tick();
 
-        state.orientation = new Quaternionf().rotationYXZ(
-                (float) Math.PI - camera.yaw * ((float) Math.PI / 180.0F),
-                -camera.pitch * ((float) Math.PI / 180.0F),
-                0.0F
+        CameraRenderState cameraState = secondaryState.cameraRenderState;
+        secondaryCamera.extractRenderState(
+                cameraState,
+                secondaryCamera.getCameraEntityPartialTicks(deltaTracker)
         );
-        state.viewRotationMatrix = new Matrix4f().rotation(new Quaternionf(state.orientation).conjugate());
-        float zoom = Math.max(0.2F, Math.min(4.0F, camera.zoom));
-        state.projectionMatrix = new Matrix4f(source.projectionMatrix).scale(zoom, zoom, 1.0F);
+        cameraState.fogType = secondaryCamera.getFluidInCamera();
+        cameraState.fogData = source.fogData;
+        cameraState.smartCull = source.smartCull;
+        cameraState.isFrustumCaptured = false;
 
-        Matrix4f modelView = new Matrix4f(state.viewRotationMatrix)
-                .translate(-camera.x, -camera.y, -camera.z);
-        state.cullFrustum = new Frustum(modelView, state.projectionMatrix);
-        state.cullFrustum.prepare(camera.x, camera.y, camera.z);
-        return state;
+        float zoom = Math.max(0.2F, Math.min(4.0F, camera.zoom));
+        cameraState.projectionMatrix.scale(zoom, zoom, 1.0F);
+        Matrix4f viewRotation = new Matrix4f(cameraState.viewRotationMatrix);
+        Frustum frustum = new Frustum(viewRotation, cameraState.projectionMatrix);
+        frustum.prepare(camera.x, camera.y, camera.z);
+        accessor.craftshop$setCullFrustum(frustum);
+        cameraState.cullFrustum = frustum;
+
+        secondaryExtractor.extract(
+                deltaTracker,
+                secondaryCamera,
+                deltaTracker.getGameTimeDeltaPartialTick(false)
+        );
+        return cameraState;
     }
 
     public static void draw(GuiGraphicsExtractor graphics, int x, int y, int width, int height) {
