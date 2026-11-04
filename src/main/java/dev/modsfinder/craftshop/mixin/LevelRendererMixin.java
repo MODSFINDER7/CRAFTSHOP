@@ -8,6 +8,7 @@ import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.chunk.SectionRenderDispatcher;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.client.renderer.state.level.LevelRenderState;
 import org.joml.Matrix4f;
@@ -28,6 +29,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(LevelRenderer.class)
 public abstract class LevelRendererMixin {
     @Shadow @Final @Mutable private LevelRenderState levelRenderState;
+    @Shadow @Final private ObjectArrayList<SectionRenderDispatcher.RenderSection> nearbyVisibleSections;
 
     @Unique
     private boolean craftshop$secondaryRender;
@@ -52,7 +54,7 @@ public abstract class LevelRendererMixin {
         List<SectionRenderDispatcher.RenderSection> primaryVisibleSections =
                 new ArrayList<>(renderer.visibleSections());
         List<SectionRenderDispatcher.RenderSection> primaryNearbyVisibleSections =
-                new ArrayList<>(renderer.nearbyVisibleSections());
+                new ArrayList<>(nearbyVisibleSections);
         boolean rendered = false;
         craftshop$secondaryRender = true;
         try {
@@ -85,10 +87,10 @@ public abstract class LevelRendererMixin {
             LiveWorldRenderer.reportRenderFailure(throwable);
         } finally {
             levelRenderState = primaryState;
-            renderer.clearVisibleSections();
+            renderer.visibleSections().clear();
             renderer.visibleSections().addAll(primaryVisibleSections);
-            renderer.nearbyVisibleSections().clear();
-            renderer.nearbyVisibleSections().addAll(primaryNearbyVisibleSections);
+            nearbyVisibleSections.clear();
+            nearbyVisibleSections.addAll(primaryNearbyVisibleSections);
             craftshop$secondaryRender = false;
             if (rendered) LiveWorldRenderer.finishFrame();
             else LiveWorldRenderer.cancelFrame();
