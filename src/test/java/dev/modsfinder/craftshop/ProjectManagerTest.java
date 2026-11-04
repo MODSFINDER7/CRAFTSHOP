@@ -71,7 +71,7 @@ class ProjectManagerTest {
         assertEquals("", project.selectedObjectId);
         assertNotNull(project.camera);
         assertNotNull(project.objects);
-        assertEquals(1, project.formatVersion);
+        assertEquals(4, project.formatVersion);
     }
 
     @Test
