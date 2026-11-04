@@ -54,6 +54,14 @@ public final class SceneRenderScreen extends Screen {
         }
     }
 
+    @Override
+    public void init() {
+        super.init();
+        if (imagePath == null && parent != null) {
+            LiveWorldRenderer.begin(project.camera, minecraft, width, height);
+        }
+    }
+
     public boolean isReady() {
         return error.isBlank() && imageWidth > 0 && imageHeight > 0;
     }
@@ -137,10 +145,6 @@ public final class SceneRenderScreen extends Screen {
 
     @Override
     public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        // The live viewport deliberately leaves the framebuffer untouched.
-        // GameRenderer has already rendered the active ClientLevel through the
-        // vanilla LevelRenderer before the screen GUI is extracted.
-        if (imagePath == null && parent != null) return;
         super.extractBackground(graphics, mouseX, mouseY, delta);
         graphics.fill(0, 0, width, height, imagePath == null ? 0xFF101820 : 0xFFFFFFFF);
     }
@@ -154,19 +158,22 @@ public final class SceneRenderScreen extends Screen {
             return;
         }
 
-        // Native live-world mode: do not approximate Minecraft's world with
-        // sampled blocks or the CPU scene rasterizer. The actual level has
-        // already been drawn by GameRenderer/LevelRenderer behind this GUI.
         if (imagePath == null && parent != null) {
+            CanvasBounds liveBounds = new CanvasBounds(12, 34,
+                    Math.max(1, width - 24), Math.max(1, height - 68));
+            graphics.fill(liveBounds.x(), liveBounds.y(),
+                    liveBounds.x() + liveBounds.width(), liveBounds.y() + liveBounds.height(), 0xFF0B1119);
+            LiveWorldRenderer.draw(graphics, liveBounds.x(), liveBounds.y(),
+                    liveBounds.width(), liveBounds.height());
+            graphics.fill(0, 0, width, 34, 0xE8101820);
+            graphics.fill(0, height - 34, width, height, 0xE8101820);
             boolean inWorld = minecraft != null && minecraft.level != null && minecraft.player != null;
-            graphics.fill(0, 0, width, 34, 0xA8101820);
-            graphics.fill(0, height - 34, width, height, 0xA8101820);
-            graphics.text(font, "CRAFTSHOP  /  NATIVE WORLD VIEW", 12, 10, 0xFF55DDEE, true);
+            graphics.text(font, "CRAFTSHOP  /  INDEPENDENT WORLD VIEWPORT", 12, 10, 0xFF55DDEE, true);
             graphics.text(font, inWorld
-                    ? "VANILLA LEVELRENDERER  •  LIVE CHUNKS  •  ENTITIES  •  BLOCK ENTITIES  •  WORLD EFFECTS"
-                    : "JOIN A WORLD TO DISPLAY THE NATIVE MINECRAFT RENDERER",
+                    ? "OFF-SCREEN LEVEL RENDER  •  SEPARATE CAMERA  •  LIVE CHUNKS / ENTITIES / BLOCK ENTITIES"
+                    : "JOIN A WORLD TO START THE INDEPENDENT WORLD VIEWPORT",
                     12, 21, inWorld ? 0xFFE7F3FC : 0xFFFFC66D, false);
-            graphics.text(font, "RIGHT DRAG: LOOK  •  ESC: RETURN TO CRAFTSHOP",
+            graphics.text(font, "WASD: MOVE  •  SPACE/SHIFT: UP/DOWN  •  RIGHT DRAG: LOOK  •  WHEEL: ZOOM  •  ESC: BACK",
                     12, height - 21, 0xFFFFFFFF, false);
             return;
         }
@@ -268,15 +275,6 @@ public final class SceneRenderScreen extends Screen {
     }
 
     private void rotateCamera(float yaw, float pitch) {
-        if (imagePath == null && parent != null && minecraft != null && minecraft.player != null) {
-            // The live viewport uses Minecraft's real camera entity. Updating
-            // its view angles keeps the native world, entities and effects in
-            // the same renderer and avoids a second, divergent camera model.
-            minecraft.player.setYRot(minecraft.player.getYRot() + yaw);
-            minecraft.player.setXRot(Math.max(-89.0F,
-                    Math.min(89.0F, minecraft.player.getXRot() + pitch)));
-            return;
-        }
         if (project.camera == null) project.camera = new SceneProject.Camera();
         project.camera.yaw += yaw;
         project.camera.pitch = Math.max(-89.0F, Math.min(89.0F, project.camera.pitch + pitch));
@@ -435,6 +433,7 @@ public final class SceneRenderScreen extends Screen {
 
     @Override
     public void onClose() {
+        LiveWorldRenderer.end();
         SceneAssetRenderer.clear();
         if (parent != null) {
             try {
