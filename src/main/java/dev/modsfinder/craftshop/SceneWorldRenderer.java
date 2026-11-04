@@ -29,7 +29,7 @@ import javax.imageio.ImageIO;
 public final class SceneWorldRenderer {
     private static final double NEAR = 0.08D;
     private static final Map<ResourceManager, Map<net.minecraft.resources.Identifier, BufferedImage>> SPRITE_IMAGES = new WeakHashMap<>();
-    private static final Map<ResourceManager, Map<net.minecraft.resources.Identifier, List<CachedBlockQuad>>> BLOCK_MESHES = new WeakHashMap<>();
+    private static final Map<ResourceManager, Map<String, List<CachedBlockQuad>>> BLOCK_MESHES = new WeakHashMap<>();
     private static Object cachedModelManager;
 
     private SceneWorldRenderer() {}
@@ -158,7 +158,8 @@ public final class SceneWorldRenderer {
             if (id == null) return false;
             Block block = BuiltInRegistries.BLOCK.getValue(id);
             if (block == null || block == net.minecraft.world.level.block.Blocks.AIR) return false;
-            List<CachedBlockQuad> mesh = cachedBlockMesh(minecraft, id, block.defaultBlockState(), object.assetId);
+            BlockState state = applyBlockProperties(block.defaultBlockState(), object.blockProperties);
+            List<CachedBlockQuad> mesh = cachedBlockMesh(minecraft, id, state, object.assetId + state);
             for (CachedBlockQuad quad : mesh) {
                 Vec3[] vertices = new Vec3[4];
                 for (int i = 0; i < 4; i++) {
@@ -175,7 +176,7 @@ public final class SceneWorldRenderer {
     }
 
     private static List<CachedBlockQuad> cachedBlockMesh(Minecraft minecraft,
-            net.minecraft.resources.Identifier id, BlockState state, String assetId) {
+            net.minecraft.resources.Identifier id, BlockState state, String cacheKey) {
         ResourceManager manager = minecraft.getResourceManager();
         Object modelManager = minecraft.getModelManager();
         synchronized (BLOCK_MESHES) {
@@ -186,10 +187,26 @@ public final class SceneWorldRenderer {
                 }
                 cachedModelManager = modelManager;
             }
-            Map<net.minecraft.resources.Identifier, List<CachedBlockQuad>> cache =
+            Map<String, List<CachedBlockQuad>> cache =
                     BLOCK_MESHES.computeIfAbsent(manager, ignored -> new HashMap<>());
-            return cache.computeIfAbsent(id, ignored -> buildBlockMesh(minecraft, state, assetId));
+            return cache.computeIfAbsent(cacheKey, ignored -> buildBlockMesh(minecraft, state, cacheKey));
         }
+    }
+
+    private static BlockState applyBlockProperties(BlockState state, Map<String, String> properties) {
+        if (properties == null || properties.isEmpty()) return state;
+        for (Map.Entry<String, String> entry : properties.entrySet()) {
+            net.minecraft.world.level.block.state.properties.Property<?> property =
+                    state.getBlock().getStateDefinition().getProperty(entry.getKey());
+            if (property != null) state = applyProperty(state, property, entry.getValue());
+        }
+        return state;
+    }
+
+    private static <T extends Comparable<T>> BlockState applyProperty(
+            BlockState state, net.minecraft.world.level.block.state.properties.Property<T> property,
+            String value) {
+        return property.getValue(value).map(parsed -> state.setValue(property, parsed)).orElse(state);
     }
 
     private static List<CachedBlockQuad> buildBlockMesh(Minecraft minecraft, BlockState state, String assetId) {
