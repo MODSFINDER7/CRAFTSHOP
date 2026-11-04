@@ -74,7 +74,7 @@ public abstract class LevelRendererMixin {
             );
             rendered = true;
         } catch (Throwable throwable) {
-            CraftShop.LOGGER.error("CraftShop independent world render failed", throwable);
+            LiveWorldRenderer.reportRenderFailure(throwable);
         } finally {
             levelRenderState = primaryState;
             craftshop$secondaryRender = false;
