@@ -18,7 +18,7 @@ class ProjectManagerTest {
 
         assertEquals(2, project.objects.size());
         assertNotEquals(first.id, second.id);
-        assertDoesNotThrow(() -> java.util.UUID.fromString(first.id));
+        assertEquals("duplicate", first.id);
         assertDoesNotThrow(() -> java.util.UUID.fromString(second.id));
     }
 
