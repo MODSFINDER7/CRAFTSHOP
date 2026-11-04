@@ -1,7 +1,11 @@
 package dev.modsfinder.craftshop;
 
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.Identifier;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -119,28 +123,34 @@ public final class SceneWorldRenderer {
         return new Frame(w, h, pixels, objectIds, bounds);
     }
 
+    private static final Identifier PREVIEW_TEXTURE_ID =
+            Identifier.fromNamespaceAndPath("craftshop", "scene_preview");
+    private static DynamicTexture previewTexture;
+    private static Frame uploadedFrame;
+
     public static void draw(GuiGraphicsExtractor graphics, Frame frame,
                             int x, int y, int width, int height) {
         if (frame == null) return;
-        for (int row = 0; row < frame.height; row++) {
-            int screenY0 = y + row * height / frame.height;
-            int screenY1 = y + (row + 1) * height / frame.height;
-            if (screenY1 <= screenY0) screenY1 = screenY0 + 1;
-            int column = 0;
-            while (column < frame.width) {
-                int color = frame.pixels[row * frame.width + column];
-                if ((color >>> 24) == 0) {
-                    column++;
-                    continue;
-                }
-                int runStart = column++;
-                while (column < frame.width && frame.pixels[row * frame.width + column] == color) column++;
-                int x0 = x + runStart * width / frame.width;
-                int x1 = x + column * width / frame.width;
-                if (x1 <= x0) x1 = x0 + 1;
-                graphics.fill(x0, screenY0, x1, screenY1, color);
-            }
+        if (previewTexture == null || previewTexture.getPixels().getWidth() != frame.width
+                || previewTexture.getPixels().getHeight() != frame.height) {
+            if (previewTexture != null) Minecraft.getInstance().getTextureManager().release(PREVIEW_TEXTURE_ID);
+            previewTexture = new DynamicTexture(() -> "CraftShop scene preview",
+                    new NativeImage(frame.width, frame.height, false));
+            Minecraft.getInstance().getTextureManager().register(PREVIEW_TEXTURE_ID, previewTexture);
+            uploadedFrame = null;
         }
+        if (uploadedFrame != frame) {
+            NativeImage pixels = previewTexture.getPixels();
+            for (int row = 0; row < frame.height; row++) {
+                for (int column = 0; column < frame.width; column++) {
+                    pixels.setPixel(column, row, frame.pixels[row * frame.width + column]);
+                }
+            }
+            previewTexture.upload();
+            uploadedFrame = frame;
+        }
+        graphics.blit(RenderPipelines.GUI_TEXTURED, PREVIEW_TEXTURE_ID, x, y, 0.0F, 0.0F,
+                width, height, frame.width, frame.height);
     }
 
     public static String hitTest(Frame frame, int x, int y) {
