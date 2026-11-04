@@ -207,7 +207,7 @@ public final class SceneWorldRenderer {
         }
     }
 
-    private static BlockState applyBlockProperties(BlockState state, Map<String, String> properties) {
+    static BlockState applyBlockProperties(BlockState state, Map<String, String> properties) {
         if (properties == null || properties.isEmpty()) return state;
         for (Map.Entry<String, String> entry : properties.entrySet()) {
             net.minecraft.world.level.block.state.properties.Property<?> property =
