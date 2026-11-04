@@ -162,6 +162,49 @@ class SceneWorldTest {
         assertEquals(List.of(centered), rendered);
     }
 
+    @Test
+    void followsCameraYawWhenCullingObjects() {
+        project = new SceneProject();
+        SceneProject.SceneObject inFront = object("yaw-front", "minecraft_block", -5, 0, 0);
+        SceneProject.SceneObject behind = object("yaw-behind", "minecraft_block", 5, 0, 0);
+        project.objects.add(inFront);
+        project.objects.add(behind);
+        SceneProject.Camera camera = cameraAtOrigin();
+        camera.yaw = 90.0F;
+
+        List<SceneProject.SceneObject> rendered = SceneWorld.from(project).renderObjects(camera);
+
+        assertEquals(List.of(inFront), rendered);
+    }
+
+    @Test
+    void rejectsObjectsOutsideTheVerticalCameraFrustum() {
+        project = new SceneProject();
+        SceneProject.SceneObject centered = object("centered", "minecraft_block", 0, 0, -5);
+        SceneProject.SceneObject above = object("above", "minecraft_block", 0, 100, -5);
+        project.objects.add(centered);
+        project.objects.add(above);
+
+        List<SceneProject.SceneObject> rendered = SceneWorld.from(project).renderObjects(cameraAtOrigin());
+
+        assertEquals(List.of(centered), rendered);
+    }
+
+    @Test
+    void followsCameraPitchWhenCullingObjects() {
+        project = new SceneProject();
+        SceneProject.SceneObject inFront = object("pitch-front", "minecraft_block", 0, -5, 0);
+        SceneProject.SceneObject behind = object("pitch-behind", "minecraft_block", 0, 5, 0);
+        project.objects.add(inFront);
+        project.objects.add(behind);
+        SceneProject.Camera camera = cameraAtOrigin();
+        camera.pitch = 90.0F;
+
+        List<SceneProject.SceneObject> rendered = SceneWorld.from(project).renderObjects(camera);
+
+        assertEquals(List.of(inFront), rendered);
+    }
+
     private static SceneProject.Camera cameraAtOrigin() {
         SceneProject.Camera camera = new SceneProject.Camera();
         camera.x = 0;
