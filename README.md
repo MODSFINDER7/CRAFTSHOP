@@ -39,6 +39,7 @@ The 3D Studio is intentionally **not** a Blender-style viewport layout. There is
 - **Place Block** opens a searchable picker of registered Minecraft blocks.
 - **Spawn Mob** opens a searchable picker of registered Minecraft entities.
 - **Add Cube** creates a primitive scene object.
+- **Import World** copies non-air blocks from a 9×6×9 area around the player into the current scene as editable block objects. The import is a one-time snapshot; later world changes do not sync back, and block-state variants (such as facing, waterlogging and open/closed states) are represented by each block's default model.
 - Scene objects are selected from the Scene Objects list.
 - Move buttons adjust X/Y/Z position in 0.25-block increments.
 - Rotate buttons adjust X/Y/Z rotation in 15-degree increments.
@@ -50,7 +51,7 @@ The 3D Studio is intentionally **not** a Blender-style viewport layout. There is
 - **Preview** opens the fixed PNG composition without changing the editing layout. Drag to look around, use WASD to move, Space/C to move vertically, and the mouse wheel to zoom. Escape returns to the Studio; the preview camera changes remain in the current project.
 - Projects are saved as editable `.craftshop` files in `.minecraft/craftshop/projects`.
 
-The scene project data is separate from the live Minecraft world: editing objects never places or modifies live world blocks. The preview uses a standalone CPU rasterizer with its own colour and depth buffers; it does not borrow or modify the loaded level. This is an isolated 3D preview, not yet a second Minecraft world backed by `ClientLevel`, chunk storage, `LevelExtractor`/`LevelRenderer`, or Minecraft's off-screen render pipeline.
+The scene project data is separate from the live Minecraft world: **Import World** can read a small nearby block snapshot into the scene, but edits never place or modify live world blocks and the snapshot does not stay synchronized. The preview uses a standalone CPU rasterizer with its own colour and depth buffers; it does not borrow or modify the loaded level. This is an isolated 3D preview, not yet a second Minecraft world backed by `ClientLevel`, chunk storage, `LevelExtractor`/`LevelRenderer`, or Minecraft's off-screen render pipeline.
 
 Each `.craftshop` project stores its editable base PNG, scene objects, spectator camera and last rendered-output reference. The Render button creates a temporary render-only composition screen: the original PNG remains the fixed background, while Minecraft block/entity preview models are projected using the saved camera and object transforms. The result is captured at the source PNG dimensions and written into `.minecraft/craftshop/screenshots`, where it appears in the gallery. The original base PNG is preserved so repeated renders do not stack duplicate objects.
 
