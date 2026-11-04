@@ -198,18 +198,6 @@ public final class SceneRenderScreen extends Screen {
 
         if (sceneFrame == null) rebuildSceneFrame(bounds);
         SceneWorldRenderer.draw(graphics, sceneFrame, bounds.x(), bounds.y(), bounds.width(), bounds.height());
-        if (imagePath == null && parent != null) {
-            String liveLabel = minecraft != null && minecraft.level != null
-                    ? "LIVE CLIENT WORLD  /  " + liveWorldBlockCount + " BLOCKS"
-                    : "LIVE WORLD  /  JOIN A WORLD TO ENABLE";
-            graphics.fill(bounds.x() + 7, bounds.y() + 7, bounds.x() + 245, bounds.y() + 23, 0xB5101820);
-            graphics.text(font, liveLabel, bounds.x() + 12, bounds.y() + 11,
-                    minecraft != null && minecraft.level != null ? 0xFF9DE6B0 : 0xFFFFC66D, true);
-            if (liveWorldUnloadedPositions > 0) {
-                graphics.text(font, "Unloaded positions skipped: " + liveWorldUnloadedPositions,
-                        bounds.x() + 12, bounds.y() + 27, 0xFFB8C5D1, false);
-            }
-        }
         if (minecraft != null && minecraft.level != null) {
             for (ProjectedObject projected : projectObjects(bounds)) {
                 if (!"minecraft_entity".equals(projected.object().kind)) continue;
