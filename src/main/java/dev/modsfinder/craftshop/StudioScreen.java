@@ -163,6 +163,7 @@ public final class StudioScreen extends Screen {
         addButton("Undo", mx, 390, 78, 20, this::undo);
         addButton("Redo", mx + 82, 390, 78, 20, this::redo);
         addButton("Reset Transform", mx, 418, 160, 20, this::resetSelectedTransform);
+        addButton("KEYFRAME TIMELINE", mx, 446, 160, 20, this::openTimeline);
 
         int listX = rightX() + 8;
         int listW = rightWidth() - 16;
@@ -695,6 +696,12 @@ public final class StudioScreen extends Screen {
                 status = "Could not update project PNG";
             }
         }));
+    }
+
+    private void openTimeline() {
+        SceneProject.SceneObject selected = selectedObject();
+        project.selectedObjectId = selected == null ? "" : selected.id;
+        this.minecraft.gui.setScreen(new SceneTimelineScreen(this, project));
     }
 
     private void previewScene() {
